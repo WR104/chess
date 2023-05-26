@@ -1,5 +1,5 @@
 extern crate js_sys;
-use crate::{piece::{Color, Position, Piece, BLACK, WHITE}};
+use crate::{piece::{Color, Position, Piece, BLACK, WHITE, self}, Evaluate};
 
 use wasm_bindgen::prelude::*;
 use serde_wasm_bindgen::to_value;
@@ -12,6 +12,14 @@ pub struct Square {
 }
 
 pub const EMPTY_SQUARE: Square = Square { piece: None };
+
+impl Default for Square {
+    fn default() -> Self {
+        Self {
+            piece: None,
+        }
+    }
+}
 
 impl From<Piece> for Square {
     fn from(piece: Piece) -> Self {
@@ -33,14 +41,6 @@ impl Square {
 impl Square {
     pub fn get_piece(&self) -> Option<Piece> {
         self.piece
-    }
-}
-
-impl Default for Square {
-    fn default() -> Self {
-        Self {
-            piece: None,
-        }
     }
 }
 
@@ -75,9 +75,78 @@ impl BoardBuilder {
 
         self
     }
+
+    pub fn column(mut self, piece: Piece) -> Self {
+        let mut pos = piece.get_pos();
+        while pos.get_row() > 0 {
+            pos = pos.next_below()
+        }
+
+        for _ in 0..8 {
+            *self.board.get_square(pos) = Square::from(piece.move_to(pos));
+            pos = pos.next_above();
+        }
+
+        self
+    }
+
     pub fn piece(mut self, piece: Piece) -> Self {
         let pos = piece.get_pos();
         *self.board.get_square(pos) = Square::from(piece);
+        self
+    }
+
+    pub fn enable_castling(mut self) -> Self {
+        self.board.black_castling_rights.enable_all();
+        self.board.white_castling_rights.enable_all();
+        self
+    }
+
+    pub fn disable_castling(mut self) -> Self {
+        self.board.black_castling_rights.disable_all();
+        self.board.white_castling_rights.disable_all();
+        self
+    }
+
+    pub fn enable_queenside_castle(mut self, color: Color) -> Self {
+        match color {
+            WHITE => self.board.white_castling_rights.enable_queenside(),
+            BLACK => self.board.black_castling_rights.enable_queenside(),
+        }
+        self
+    }
+
+    pub fn disable_queenside_castle(mut self, color: Color) -> Self {
+        match color {
+            WHITE => self.board.white_castling_rights.disable_queenside(),
+            BLACK => self.board.black_castling_rights.disable_queenside(),
+        }
+        self
+    }
+
+    pub fn enable_kingside_castle(mut self, color: Color) -> Self {
+        match color {
+            WHITE => self.board.white_castling_rights.enable_kingside(),
+            BLACK => self.board.black_castling_rights.enable_kingside(),
+        }
+        self
+    }
+
+    pub fn disable_kingside_castle(mut self, color: Color) -> Self {
+        match color {
+            WHITE => self.board.white_castling_rights.disable_kingside(),
+            BLACK => self.board.black_castling_rights.disable_kingside(),
+        }
+        self
+    }
+
+    pub fn set_en_passant(mut self, position: Option<Position>) -> Self {
+        self.board.en_passant = position;
+        self
+    }
+
+    pub fn set_turn(mut self, color: Color) -> Self {
+        self.board = self.board.set_turn(color);
         self
     }
 
@@ -85,10 +154,87 @@ impl BoardBuilder {
         self.board
     }
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CastlingRights {
+    kingside: bool,
+    queenside: bool,
+}
+
+impl Default for CastlingRights {
+    fn default() -> Self {
+        Self {
+            kingside: true,
+            queenside: true,
+        }
+    }
+}
+
+impl CastlingRights {
+    pub fn can_kingside_castle(&self) -> bool {
+        self.kingside
+    }
+
+    pub fn can_queenside_castle(&self) -> bool {
+        self.queenside
+    }
+
+    fn disable_kingside(&mut self) {
+        self.kingside = false
+    }
+
+    fn disable_queenside(&mut self) {
+        self.queenside = false
+    }
+
+    fn disable_all(&mut self) {
+        self.disable_kingside();
+        self.disable_queenside()
+    }
+
+    fn enable_kingside(&mut self) {
+        self.kingside = true
+    }
+
+    fn enable_queenside(&mut self) {
+        self.queenside = true
+    }
+
+    fn enable_all(&mut self) {
+        self.enable_kingside();
+        self.enable_queenside()
+    }
+}
 
 #[wasm_bindgen]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Board {
     squares: [Square; 64],
+
+    en_passant: Option<Position>,
+
+    white_castling_rights: CastlingRights,
+    black_castling_rights: CastlingRights,
+
+    turn: Color,
+}
+
+impl Evaluate for Board {
+    fn value_for(&self, color: Color) -> f64 {
+        todo!()
+    }
+
+    fn get_current_player_color(&self) -> Color {
+        todo!()
+    }
+
+    fn get_legal_moves(&self) -> Vec<crate::Move> {
+        todo!()
+    }
+
+    fn apply_eval_move(&self, m: crate::Move) -> Self {
+        todo!()
+    }
+    //...
 }
 
 #[wasm_bindgen]
@@ -113,6 +259,7 @@ impl Board {
         .piece(Piece::Bishop(WHITE, F1))
         .piece(Piece::Knight(WHITE, G1))
         .piece(Piece::Rook(WHITE, H1))
+        .enable_castling()
         .build()
     }
 
@@ -129,8 +276,64 @@ impl Board {
     pub fn empty() -> Self {
         Self {
             squares: [EMPTY_SQUARE; 64],
+            en_passant: None,
+
+            white_castling_rights: CastlingRights::default(),
+            black_castling_rights: CastlingRights::default(),
+
+            turn: WHITE,
         }
     }
+
+    pub fn rating_bar() {
+
+    }
+
+    #[inline]
+    pub fn get_turn_color(&self) -> Color {
+        self.turn
+    }
+
+    pub fn get_en_passant(&self) -> Option<Position> {
+        self.en_passant
+    }
+
+    pub fn remove_all(&self, color: Color) -> Self{
+        let mut result = *self;
+        for square in &mut result.squares {
+            if let Some(piece) = square.get_piece() {
+                if piece.get_color() == color {
+                    *square = EMPTY_SQUARE
+                }
+            }
+        }
+        result
+    }
+
+    #[inline]
+    pub fn set_turn(&self, color: Color) -> Self {
+        let mut result = *self;
+        result.turn = color;
+        result
+    }
+
+    pub fn get_material_advantage(&self, color: Color) -> i32 {
+        self.squares
+            .iter()
+            .map(|square| match square.get_piece() {
+                Some(piece) => {
+                    if piece.get_color() == color {
+                        piece.get_material_value()
+                    } else {
+                        -piece.get_material_value()
+                    }
+                }
+                None => 0,
+            })
+            .sum()
+    }
+
+    
     #[inline]
     fn get_square(&mut self, pos: Position) -> &mut Square {
         &mut self.squares[((7 - pos.get_row()) * 8 + pos.get_col()) as usize]
@@ -158,6 +361,216 @@ impl Board {
 
         result
     }
+
+    #[inline]
+    fn add_piece(&mut self, piece: Piece) {
+        let pos = piece.get_pos();
+        *self.get_square(pos) = Square::from(piece);
+    }
+
+    // Does a square have any piece?
+    #[inline]
+    pub fn get_piece(&self, pos: Position) -> Option<Piece> {
+        if pos.is_off_board() {
+            return None;
+        }
+        self.squares[((7 - pos.get_row()) * 8 + pos.get_col()) as usize].get_piece()
+    }
+
+    #[inline]
+    pub fn has_ally_piece(&self, pos: Position, ally_color: Color) -> bool {
+        if let Some(piece) = self.get_piece(pos) {
+            piece.get_color() == ally_color
+        } else {
+            false
+        }
+    }
+
+    // If a square at a given position has an enemy piece from a given
+    // ally color, return true. Otherwise, return false.
+    //
+    // For example, if a square has a black piece, and this method is called
+    // upon it with an `ally_color` of `Color::White`, then it will return true.
+    // If called with `Color::Black` upon the same square, however, it will return false.
+    #[inline]
+    pub fn has_enemy_piece(&self, pos: Position, ally_color: Color) -> bool {
+        if let Some(piece) = self.get_piece(pos) {
+            piece.get_color() == !ally_color
+        } else {
+            false
+        }
+    }
+
+    // If a square at a given position has any piece, return true
+    #[inline]
+    pub fn has_piece(&self, pos: Position) -> bool {
+        self.get_piece(pos) != None
+    }
+
+    pub fn has_no_piece(&self, pos: Position) -> bool {
+        self.get_piece(pos) == None
+    }
+
+    pub fn get_king_pos(&self, color: Color) -> Option<Position> {
+        let mut king_pos = None;
+        for square in &self.squares {
+            if let Some(Piece::King(c, pos)) = square.get_piece() {
+                if c == color {
+                    king_pos = Some(pos)
+                }
+            }
+        }
+        king_pos
+    }
+
+    // Is a square threatened by an enemy piece?
+    pub fn is_threatened(&self, pos: Position, ally_color: Color) -> bool {
+        for (i, square) in self.squares.iter().enumerate() {
+            let row = 7 - i / 8;
+            let col = i % 8;
+            let square_pos = Position::new(row as i32, col as i32);
+            if !square_pos.is_orthogonal_to(pos)
+                && !square_pos.is_diagonal_to(pos)
+                && !square_pos.is_knight_move(pos) {
+                    contine;
+            }
+
+            if let Some(piece) = square.get_piece() {
+                if piece.get_color() == ally_color {
+                    continue;
+                }
+                if piece.is_leagal_attack(pos, self) {
+                    return true
+                }
+            }
+        }
+        false
+    }
+
+    // Is the king of a given color in check
+    pub fn is_in_check(&self, color: Color) -> bool {
+        if let Some(king_pos) = self.get_king_pos(color) {
+            self.is_threatened(king_pos, color)
+        } else {
+            false
+        }
+    }
+
+    fn move_piece(&self, from: Position, to: Position, promotion: Option<Piece>) -> Self {
+        let mut result = *self;
+        result.en_passant = None;
+
+        if from.is_off_board() || to.is_off_board() {
+            return result;
+        }
+
+        let form_square = result.get_square(from);
+        if let Some(mut piece) = form_square.get_piece() {
+            *form_square = EMPTY_SQUARE;
+
+            if piece.is_pawn() && (to.get_row() == 0 || to.get_row() == 7) {
+                piece = match promotion {
+
+                    Some(promotion) => {
+                        if promotion.is_king() || promotion.is_pawn() {
+                            Piece::Queen(piece.get_color(), piece.get_pos())
+                        } else {
+                            promotion
+                                .with_color(piece.get_color())
+                                .move_to(piece.get_pos())
+                        }
+                    }
+
+                    // queen by default
+                    None => Piece::Queen(piece.get_color(), piece.get_pos()),
+                }
+            }
+
+            if piece.is_starting_pawn() && (from.get_row() - to.get_row()).abs() == 2 {
+                result.en_passant = Some(to.pawn_back(piece.get_color()))
+            }
+
+            result.add_piece(piece.move_to(to));
+
+            let castling_rights= match piece.get_color() {
+                WHITE => &mut result.white_castling_rights,
+                BLACK => &mut result.black_castling_rights,
+            };
+
+            if piece.is_king() {
+                castling_rights.disable_all();
+            } else if piece.is_queenside_rook() {
+                castling_rights.disable_queenside();
+            } else if piece.is_kingside_rook() {
+                castling_rights.disable_kingside();
+            }
+        }
+
+        result
+    }
+
+    // Can a given player castle kingside?
+    pub fn can_kingside_castle(&self, color: Color) -> bool {
+        let right_of_king = Position::king_pos(color).next_right();
+        match color {
+            WHITE => {
+                self.has_no_piece(Position::new(0, 5))
+                    && self.has_no_piece(Position::new(0, 6))
+                    && self.get_piece(Position::new(0, 7))
+                        == Some(Piece::Rook(color, Position::new(0, 7)))
+                    && self.white_castling_rights.can_kingside_castle()
+                    && !self.is_in_check(color)
+                    && !self.is_threatened(right_of_king, color)
+                    && !self.is_threatened(right_of_king.next_right(), color)
+            }
+            BLACK => {
+                self.has_no_piece(Position::new(7, 5))
+                    && self.has_no_piece(Position::new(7, 6))
+                    && self.get_piece(Position::new(7, 7))
+                        == Some(Piece::Rook(color, Position::new(7, 7)))
+                    && self.black_castling_rights.can_kingside_castle()
+                    && !self.is_in_check(color)
+                    && !self.is_threatened(right_of_king, color)
+                    && !self.is_threatened(right_of_king.next_right(), color)
+            }
+        }
+    }
+
+    pub fn can_queenside_castle(&self, color: Color) -> bool {
+        match color {
+            WHITE => {
+                self.has_no_piece(Position::new(0, 1))
+                    && self.has_no_piece(Position::new(0, 2))
+                    && self.has_no_piece(Position::new(0, 3))
+                    && self.get_piece(Position::new(0, 0))
+                        == Some(Piece::Rook(color, Position::new(0, 0)))
+                    && self.white_castling_rights.can_queenside_castle()
+                    && !self.is_in_check(color)
+                    && !self.is_threatened(Position::queen_pos(color), color)
+            }
+            BLACK => {
+                self.has_no_piece(Position::new(7, 1))
+                    && self.has_no_piece(Position::new(7, 2))
+                    && self.has_no_piece(Position::new(7, 3))
+                    && self.get_piece(Position::new(7, 0))
+                        == Some(Piece::Rook(color, Position::new(7, 0)))
+                    && self.black_castling_rights.can_queenside_castle()
+                    && !self.is_in_check(color)
+                    && !self.is_threatened(Position::queen_pos(color), color)
+            }
+        }
+    }
+
+    pub fn get_castling_rights(&self, color: Color) -> CastlingRights {
+        match color {
+            WHITE => self.white_castling_rights,
+            BLACK => self.black_castling_rights,
+        }
+    }
+
+    
+    //is_legal_move()
+
 }
 
 pub const A1: Position = Position::new(0, 0);

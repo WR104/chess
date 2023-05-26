@@ -38,23 +38,23 @@ function createPieceImage(id) {
 function placePiecesOnBoard() {
     const SQUARES = document.getElementsByClassName("square");
     const CHESS_TYPES = ["P", "N", "B", "R", "Q", "K"];
-    
+
     for (let i = 0; i < SquareNum; i++) {
-      const square = SQUARES[i];
-      const imageElement = square.querySelector("img");
-      if (imageElement) {
-        square.removeChild(imageElement);
-      }
-      let chessType = squaresU8Value[i];
-      if (chessType === 0) {
-        continue;
-      }
-      const chessColor = chessType < 7 ? "w" : "b";
-      chessType = (chessType % 6) || 6;
-      const chessId = `${chessColor}${CHESS_TYPES[chessType - 1]}`;
-      const img = createPieceImage(chessId);
-      square.appendChild(img);
+        const square = SQUARES[i];
+        const imageElement = square.querySelector("img");
+        if (imageElement) {
+            square.removeChild(imageElement);
+        }
+        let chessType = squaresU8Value[i];
+        if (chessType === 0) {
+            continue;
+        }
+        const chessColor = chessType < 7 ? "w" : "b";
+        chessType = (chessType % 6) || 6;
+        const chessId = `${chessColor}${CHESS_TYPES[chessType - 1]}`;
+        const img = createPieceImage(chessId);
+        square.appendChild(img);
     }
-  }
+}
 createBoard();
 placePiecesOnBoard();
