@@ -1,5 +1,7 @@
 extern crate js_sys;
-use crate::{piece::{Color, Position, Piece, BLACK, WHITE, self}, Evaluate};
+use crate::{piece::{Color, Position, Piece, BLACK, WHITE}, 
+            Evaluate,
+            Move};
 
 use wasm_bindgen::prelude::*;
 use serde_wasm_bindgen::to_value;
@@ -432,7 +434,7 @@ impl Board {
             if !square_pos.is_orthogonal_to(pos)
                 && !square_pos.is_diagonal_to(pos)
                 && !square_pos.is_knight_move(pos) {
-                    contine;
+                    continue;
             }
 
             if let Some(piece) = square.get_piece() {
@@ -568,6 +570,29 @@ impl Board {
         }
     }
 
+    pub(crate) fn is_legal_move(&self, m: Move, player_color: Color) -> bool {
+        match m {
+            Move::KingSideCastle => self.can_kingside_castle(player_color),
+            Move::QueenSideCastle => self.can_queenside_castle(player_color),
+            Move::Piece(from, to) => match self.get_piece(from) {
+                Some(Piece::Pawn(c, pos)) => {
+                    let piece = Piece::Pawn(c, pos);
+                    ((if let Some(en_passant) = self.en_passant {
+                        (en_passant == from.pawn_up(ally_color).next_left()
+                            || en_passant == from.pawn_up(player_color).next_left()
+                                && en_passant == to)
+                            && c == player_color
+                    } else {
+                        false
+                    }) || piece.is_legal_move(to, self) && piece.get_color() == player_color)
+                        && !self.apply_move(m).is_in_check(player_color)
+                }
+
+            },
+            Move::Promotion(_, _, _) => todo!(),
+            Move::Resign => todo!(),
+        }
+    }
     
     //is_legal_move()
 

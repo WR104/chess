@@ -1,5 +1,6 @@
-use serde::{Serialize, Deserialize};
+use crate::{board::Board, Move};
 use core::convert::TryFrom;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Color {
@@ -22,7 +23,7 @@ impl core::ops::Not for Color {
 }
 
 /* =================================================================================
-   =================================================================================*/
+=================================================================================*/
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Position {
@@ -35,6 +36,21 @@ impl Position {
         Self { row, col }
     }
 
+    #[inline]
+    pub const fn king_pos(color: Color) -> Self {
+        match color {
+            Color::White => Self::new(0, 4),
+            Color::Black => Self::new(7, 4),
+        }
+    }
+
+    #[inline]
+    pub const fn queen_pos(color: Color) -> Self {
+        match color {
+            Color::White => Self::new(0, 3),
+            Color::Black => Self::new(7, 3),
+        }
+    }
     //Parse a position from PGN. for example: 'e4' and 'D8'
     pub fn pgn(s: &str) -> Result<Self, String> {
         let s = s.trim().to_lowercase();
@@ -131,7 +147,7 @@ impl Position {
             false
         }
     }
-    
+
     //Is this position beneath another position on the board?
     //Pieces "beneath" other pieces on the board have lower ranks.
     //for example, A7 is below A8
@@ -144,7 +160,7 @@ impl Position {
     }
 
     //Is this position left of another position on the board?
-    //Pieces "left of" other pieces on the board have a lower 
+    //Pieces "left of" other pieces on the board have a lower
     //lexigraphical column character
     //for example, A8 is left of B8
     pub fn is_left_of(&self, other: Self) -> bool {
@@ -166,7 +182,7 @@ impl Position {
     }
 
     // Get the position directly above this position.
-    // 
+    //
     // IMPORTANT NOTE: This will NOT check for positions
     // off of the board! You could easily get an invalid
     // position if you do not check with the `is_on_board`
@@ -178,11 +194,11 @@ impl Position {
 
     //Get the next square upwards from a respective player's
     //pawn.
-    // 
+    //
     // IMPORTANT NOTE: This will NOT check for positions
     // off of the board! You could easily get an invalid
     // position if you do not check with the `is_on_board`
-    // method! 
+    // method!
     pub fn pawn_up(&self, ally_color: Color) -> Self {
         match ally_color {
             Color::White => self.next_above(),
@@ -196,7 +212,7 @@ impl Position {
     // IMPORTANT NOTE: This will NOT check for positions
     // off of the board! You could easily get an invalid
     // position if you do not check with the `is_on_board`
-    // method! 
+    // method!
     pub fn pawn_back(&self, ally_color: Color) -> Self {
         self.pawn_up(!ally_color)
     }
@@ -204,7 +220,7 @@ impl Position {
     //Get the position directly below this position.
 
     // Get the position directly left of this position.
-    // 
+    //
     // IMPORTANT NOTE: This will NOT check for positions
     // off of the board! You could easily get an invalid
     // position if you do not check with the `is_on_board`
@@ -215,7 +231,7 @@ impl Position {
     }
 
     // Get the position directly right of this position.
-    // 
+    //
     // IMPORTANT NOTE: This will NOT check for positions
     // off of the board! You could easily get an invalid
     // position if you do not check with the `is_on_board`
@@ -236,16 +252,49 @@ impl Position {
     //Is this the starting position of the kingside rook?
     pub fn is_kingside_rook(&self) -> bool {
         (self.row == 0 || self.row == 7) && self.col == 7
-    } 
+    }
 
     //Is this the starting position of the queenside rook?
     pub fn is_queenside_rook(&self) -> bool {
         (self.row == 0 || self.row == 7) && self.col == 0
     }
 
+    // Get the list of positions from this position to another
+    // position, moving diagonally.
+    //
+    // This does _not_ include the `from` position, and includes the `to` position.
+    pub fn diagonals_to(&self, to: Self) -> Vec<Self> {
+        if !self.is_diagonal_to(to) {
+            return Vec::new();
+        }
+
+        let row_step;
+        let col_step;
+        if self.is_left_of(to) {
+            col_step = 1;
+        } else {
+            col_step = -1;
+        }
+
+        if self.is_below(to) {
+            row_step = 1;
+        } else {
+            row_step = -1;
+        }
+
+        let mut acc = *self;
+        let mut result = Vec::new();
+        for _ in 0..self.diagonal_distance(to) {
+            acc = acc.add_row(row_step).add_col(col_step);
+            result.push(acc);
+        }
+
+        result
+    }
+
     //Get the list of positions from this position to another
     //position, moving orthogonally.
-    // 
+    //
     //This does _not_ include the `from` position, and includes the `to` position.
     pub fn orthogonals_to(&self, to: Self) -> Vec<Self> {
         if !self.is_orthogonal_to(to) {
@@ -282,7 +331,7 @@ impl Position {
 }
 
 /* =================================================================================
-   =================================================================================*/
+=================================================================================*/
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Piece {
@@ -377,7 +426,6 @@ impl Piece {
             + (self.get_material_value() * 10) as f64
     }
 
-
     #[inline]
     pub fn get_color(&self) -> Color {
         match self {
@@ -410,8 +458,7 @@ impl Piece {
             | Self::Rook(_, p)
             | Self::Bishop(_, p)
             | Self::Knight(_, p)
-            | Self::Pawn(_, p)
-            => *p,
+            | Self::Pawn(_, p) => *p,
         }
     }
 
@@ -487,8 +534,335 @@ impl Piece {
             Self::Pawn(c, _) => Self::Pawn(c, new_pos),
         }
     }
-    
-    //get_legal_move
+
+    pub(crate) fn get_legal_moves(&self, board: &Board) -> Vec<Move> {
+        let mut result = Vec::new();
+        match *self {
+            Self::Pawn(ally_color, pos) => {
+                let up = pos.pawn_up(ally_color);
+                let next_up = up.pawn_up(ally_color);
+                let up_left = up.next_left();
+                let up_right = up.next_right();
+
+                if let Some(en_passant) = board.get_en_passant() {
+                    if en_passant == up_left || en_passant == up_right {
+                        result.push(Move::Piece(pos, en_passant));
+                    }
+                }
+
+                if next_up.is_on_board()
+                    && self.is_starting_pawn()
+                    && board.has_no_piece(up)
+                    && board.has_no_piece(next_up)
+                {
+                    result.push(Move::Piece(pos, next_up))
+                }
+
+                if up.is_on_board() && board.has_no_piece(up) {
+                    result.push(Move::Piece(pos, up))
+                }
+
+                if up_left.is_on_board() && board.has_enemy_piece(up, ally_color) {
+                    result.push(Move::Piece(pos, up_left))
+                }
+
+                if up_right.is_on_board() && board.has_enemy_piece(up_right, ally_color) {
+                    result.push(Move::Piece(pos, up_right))
+                }
+            }
+
+            // !!! What if the king is in check?
+            Piece::King(ally_color, pos) => {
+                for p in &[
+                    pos.next_left(),
+                    pos.next_right(),
+                    pos.next_above(),
+                    pos.next_below(),
+                    pos.next_left().next_above(),
+                    pos.next_left().next_below(),
+                    pos.next_right().next_above(),
+                    pos.next_right().next_below(),
+                ] {
+                    if p.is_on_board() && !board.has_ally_piece(*p, ally_color) {
+                        result.push(Move::Piece(pos, *p))
+                    }
+                }
+                if board.can_kingside_castle(ally_color) {
+                    result.push(Move::KingSideCastle);
+                } else if board.can_queenside_castle(ally_color) {
+                    result.push(Move::QueenSideCastle);
+                }
+            }
+
+            Piece::Queen(ally_color, pos) => {
+                for row in 0..8 {
+                    let new_pos = Position::new(row, pos.get_col());
+                    if new_pos != pos
+                        && !board.has_ally_piece(new_pos, ally_color)
+                        && new_pos.is_orthogonal_to(pos)
+                    {
+                        result.push(Move::Piece(pos, new_pos));
+                    }
+                }
+
+                for col in 0..8 {
+                    let new_pos = Position::new(pos.get_row(), col);
+                    if new_pos != pos
+                        && !board.has_ally_piece(new_pos, ally_color)
+                        && new_pos.is_orthogonal_to(pos)
+                    {
+                        result.push(Move::Piece(pos, new_pos));
+                    }
+                }
+
+                for row in 0..8 {
+                    for col in 0..8 {
+                        let new_pos = Position::new(row, col);
+                        if new_pos != pos
+                            && !board.has_ally_piece(new_pos, ally_color)
+                            && new_pos.is_diagonal_to(pos)
+                        {
+                            result.push(Move::Piece(pos, new_pos));
+                        }
+                    }
+                }
+            }
+            Piece::Rook(ally_color, pos) => {
+                for row in 0..8 {
+                    let new_pos = Position::new(row, pos.get_col());
+                    if new_pos != pos
+                        && !board.has_ally_piece(new_pos, ally_color)
+                        && new_pos.is_orthogonal_to(pos)
+                    {
+                        result.push(Move::Piece(pos, new_pos));
+                    }
+                }
+                for col in 0..8 {
+                    let new_pos = Position::new(pos.get_row(), col);
+                    if new_pos != pos
+                        && !board.has_ally_piece(new_pos, ally_color)
+                        && new_pos.is_orthogonal_to(pos)
+                    {
+                        result.push(Move::Piece(pos, new_pos));
+                    }
+                }
+            }
+            Piece::Bishop(ally_color, pos) => {
+                for row in 0..8 {
+                    for col in 0..8 {
+                        let new_pos = Position::new(row, col);
+                        if new_pos != pos
+                            && !board.has_ally_piece(new_pos, ally_color)
+                            && new_pos.is_diagonal_to(pos)
+                        {
+                            result.push(Move::Piece(pos, new_pos));
+                        }
+                    }
+                }
+            }
+            Piece::Knight(ally_color, pos) => {
+                for p in &[
+                    pos.next_left().next_left().next_above(),
+                    pos.next_left().next_above().next_above(),
+                    pos.next_left().next_left().next_below(),
+                    pos.next_left().next_below().next_below(),
+                    pos.next_right().next_right().next_above(),
+                    pos.next_right().next_above().next_above(),
+                    pos.next_right().next_right().next_below(),
+                    pos.next_right().next_below().next_below(),
+                ] {
+                    if p.is_on_board() && !board.has_ally_piece(*p, ally_color) {
+                        result.push(Move::Piece(pos, *p))
+                    }
+                }
+            }
+        }
+        let color = self.get_color();
+        result
+            .into_iter()
+            .filter(|x| match x {
+                Move::Piece(from, to) => {
+                    if from.is_on_board() && to.is_on_board() {
+                        board.is_legal_move(*x, color)
+                    } else {
+                        false
+                    }
+                }
+                _ => board.is_legal_move(*x, color),
+            })
+            .collect::<Vec<Move>>()
+    }
+
+    // Verify that moving to a new position is a legal move.
+    pub(crate) fn is_legal_move(&self, new_pos: Position, board: &Board) -> bool {
+        if board.has_ally_piece(new_pos, self.get_color()) || new_pos.is_off_board() {
+            return false;
+        }
+
+        match *self {
+            Self::Pawn(ally_color, pos) => {
+                let up = pos.pawn_up(ally_color);
+                let up_left = up.next_left();
+                let up_right = up.next_right();
+
+                (if let Some(en_passant) = board.get_en_passant() {
+                    (en_passant == up_left || en_passant == up_right) && (new_pos == en_passant)
+                } else {
+                    false
+                }) || (self.is_starting_pawn()
+                    && board.has_no_piece(new_pos)
+                    && board.has_no_piece(up)
+                    && new_pos == up.pawn_up(ally_color))
+                    || (board.has_enemy_piece(new_pos, ally_color) && new_pos == up_left)
+                    || (board.has_enemy_piece(new_pos, ally_color) && new_pos == up_right)
+                    || (board.has_no_piece(new_pos) && new_pos == up)
+            }
+
+            Self::King(_, pos) => pos.is_adjacent_to(new_pos),
+
+            Self::Queen(_, pos) => {
+                if pos.is_orthogonal_to(new_pos) {
+                    let mut traveling = pos.orthogonals_to(new_pos);
+                    traveling.pop();
+
+                    for pos in traveling {
+                        if board.has_piece(pos) {
+                            return false;
+                        }
+                    }
+                    true
+                } else if pos.is_diagonal_to(new_pos) {
+                    let mut traveling = pos.diagonals_to(new_pos);
+                    traveling.pop();
+
+                    for pos in traveling {
+                        if board.has_piece(pos) {
+                            return false;
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+
+            Self::Rook(_, pos) => {
+                if pos.is_orthogonal_to(new_pos) {
+                    let mut traveling = pos.orthogonals_to(new_pos);
+                    traveling.pop();
+
+                    for pos in traveling {
+                        if board.has_piece(pos) {
+                            return false;
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+
+            Self::Bishop(_, pos) => {
+                if pos.is_diagonal_to(new_pos) {
+                    let mut traveling = pos.diagonals_to(new_pos);
+                    traveling.pop();
+
+                    for pos in traveling {
+                        if board.has_piece(pos) {
+                            return false;
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+
+            Self::Knight(_, pos) => pos.is_knight_move(new_pos),
+        }
+    }
+
+    // Verify that attacking a given square is a legal move.
+    pub(crate) fn is_legal_attack(&self, new_pos: Position, board: &Board) -> bool {
+        if board.has_ally_piece(new_pos, self.get_color()) || new_pos.is_off_board() {
+            return false;
+        }
+
+        match *self {
+            Self::Pawn(ally_color, pos) => {
+                let up = pos.pawn_up(ally_color);
+                (if let Some(en_passant) = board.get_en_passant() {
+                    (en_passant == up.next_left() || en_passant == up.next_right())
+                        && (new_pos == en_passant)
+                } else {
+                    false
+                }) || new_pos == up.next_left()
+                    || new_pos == up.next_right()
+            }
+
+            Self::King(_, pos) => pos.is_adjacent_to(new_pos),
+
+            Self::Queen(_, pos) => {
+                if pos.is_orthogonal_to(new_pos) {
+                    let mut traveling = pos.orthogonals_to(new_pos);
+                    traveling.pop();
+
+                    for pos in traveling {
+                        if board.has_piece(pos) {
+                            return false;
+                        }
+                    }
+                    true
+                } else if pos.is_diagonal_to(new_pos) {
+                    let mut traveling = pos.diagonals_to(new_pos);
+                    traveling.pop();
+
+                    for pos in traveling {
+                        if board.has_piece(pos) {
+                            return false;
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+
+            Self::Rook(_, pos) => {
+                if pos.is_orthogonal_to(new_pos) {
+                    let mut traveling = pos.orthogonals_to(new_pos);
+                    traveling.pop();
+
+                    for pos in traveling {
+                        if board.has_piece(pos) {
+                            return false;
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+
+            Self::Bishop(_, pos) => {
+                if pos.is_diagonal_to(new_pos) {
+                    let mut traveling = pos.diagonals_to(new_pos);
+                    traveling.pop();
+
+                    for pos in traveling {
+                        if board.has_piece(pos) {
+                            return false;
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+
+            Self::Knight(_, pos) => pos.is_knight_move(new_pos),
+        }
+    }
 }
 
 const WHITE_KING_POSITION_WEIGHTS: [[f64; 8]; 8] = [
