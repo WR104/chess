@@ -1,86 +1,43 @@
-<div align="center">
+# Chess
 
-  <h1><code>wasm-pack-template</code></h1>
+This project is a chess application that allows users to play chess online. It is built using Rust, WebAssembly (WASM), JavaScript, HTML, and CSS.
 
-  <strong>A template for kick starting a Rust and WebAssembly project using <a href="https://github.com/rustwasm/wasm-pack">wasm-pack</a>.</strong>
+## Table of Contents
 
-  <p>
-    <a href="https://travis-ci.org/rustwasm/wasm-pack-template"><img src="https://img.shields.io/travis/rustwasm/wasm-pack-template.svg?style=flat-square" alt="Build Status" /></a>
-  </p>
+- [Introduction](#introduction)
+- [Technologies](#technologies)
+- [Getting Started](#getting-started)
 
-  <h3>
-    <a href="https://rustwasm.github.io/docs/wasm-pack/tutorials/npm-browser-packages/index.html">Tutorial</a>
-    <span> | </span>
-    <a href="https://discordapp.com/channels/442252698964721669/443151097398296587">Chat</a>
-  </h3>
+## Introduction
 
-  <sub>Built with 🦀🕸 by <a href="https://rustwasm.github.io/">The Rust and WebAssembly Working Group</a></sub>
-</div>
+The chess project is an interactive web-based chess game that enables users to play against each other online. The application provides a visually appealing chessboard interface with intuitive controls, allowing players to make moves and track the game's progress.
 
-## About
+Features of the chess project include:
+- Full chess game functionality, including legal move validation, checkmate detection, and draw conditions.
+- Multiplayer support for playing against other online users.
+- Single-player mode with AI opponent at different difficulty levels.
+- Move history tracking and game state persistence.
 
-[**📚 Read this template tutorial! 📚**][template-docs]
+## Technologies
 
-This template is designed for compiling Rust libraries into WebAssembly and
-publishing the resulting package to NPM.
+The chess project utilizes the following technologies:
 
-Be sure to check out [other `wasm-pack` tutorials online][tutorials] for other
-templates and usages of `wasm-pack`.
+- Rust: The core chess logic and game engine are implemented in Rust, providing efficient and reliable game processing.
+- WebAssembly (WASM): The Rust code is compiled into WebAssembly to run in the browser environment.
+- JavaScript: The interactive features and user interface enhancements are implemented using JavaScript.
+- HTML: The web pages and layout structure of the application are defined using HTML.
+- CSS: The visual styling and presentation of the application are achieved through CSS.
 
-[tutorials]: https://rustwasm.github.io/docs/wasm-pack/tutorials/index.html
-[template-docs]: https://rustwasm.github.io/docs/wasm-pack/tutorials/npm-browser-packages/index.html
+## Getting Started
 
-## 🚴 Usage
+To run the chess project locally on your machine, follow these steps:
 
-### 🐑 Use `cargo generate` to Clone this Template
+1. Clone the repository: `git clone https://github.com/WR104/chess.git`
+2. Navigate to the project directory: `cd chess`
+3. Install dependencies: `npm install`
+4. Build the project: `cargo build`
+5. Start the local development server: `npm start`
+6. Open your web browser and visit `http://localhost:8080` to access the chess application.
 
-[Learn more about `cargo generate` here.](https://github.com/ashleygwilliams/cargo-generate)
+Ensure that you have Rust, Node.js, and npm installed on your machine before proceeding.
 
-```
-cargo generate --git https://github.com/rustwasm/wasm-pack-template.git --name my-project
-cd my-project
-```
-
-### 🛠️ Build with `wasm-pack build`
-
-```
-wasm-pack build
-```
-
-### 🔬 Test in Headless Browsers with `wasm-pack test`
-
-```
-wasm-pack test --headless --firefox
-```
-
-### 🎁 Publish to NPM with `wasm-pack publish`
-
-```
-wasm-pack publish
-```
-
-## 🔋 Batteries Included
-
-* [`wasm-bindgen`](https://github.com/rustwasm/wasm-bindgen) for communicating
-  between WebAssembly and JavaScript.
-* [`console_error_panic_hook`](https://github.com/rustwasm/console_error_panic_hook)
-  for logging panic messages to the developer console.
-* [`wee_alloc`](https://github.com/rustwasm/wee_alloc), an allocator optimized
-  for small code size.
-* `LICENSE-APACHE` and `LICENSE-MIT`: most Rust projects are licensed this way, so these are included for you
-
-## License
-
-Licensed under either of
-
-* Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
-
-at your option.
-
-### Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally
-submitted for inclusion in the work by you, as defined in the Apache-2.0
-license, shall be dual licensed as above, without any additional terms or
-conditions.
