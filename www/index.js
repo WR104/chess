@@ -63,20 +63,16 @@
 //     }
 // }
 
-function renderLoop() {
+// function renderLoop() {
 
-    if (selectedSquare) {
-        const { row, col } = selectedSquare;
+//     if (selectedSquare) {
+//         const { row, col } = selectedSquare;
         
-        // send row and col to Rust file
-        test.set_input(row, col);
-        console.log(test.get_input()[0] + " " + test.get_input()[1]);
+//         selectedSquare = null;
+//     }
 
-        selectedSquare = null;
-    }
-
-    requestAnimationFrame(renderLoop);
-}
+//     requestAnimationFrame(renderLoop);
+// }
 
 // var test = Test.new();
 // createBoard();

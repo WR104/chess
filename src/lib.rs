@@ -51,14 +51,6 @@ pub async fn run() -> Result<(), JsValue> {
     Ok(())
 }
 
-pub fn handle_square_click(row: usize, col: usize) {
-    // Handle the square click event in Rust
-    // You can perform any necessary logic here
-    // For example, you can access the selected square and perform actions based on it
-    // Here, we simply print the selected square
-    log!("Selected square: ({}, {})", row, col);
-}
-
 fn create_board() {
     let window = window().expect("no global `window` exists");
     let document = window.document().expect("should have a document on window");
@@ -83,9 +75,11 @@ fn create_board() {
                     "darkSq"
                 })
                 .unwrap();
-            square.set_attribute("data-i", &i.to_string())
+            square
+                .set_attribute("data-i", &i.to_string())
                 .expect("failed to set data-i attribute");
-            square.set_attribute("data-j", &j.to_string())
+            square
+                .set_attribute("data-j", &j.to_string())
                 .expect("failed to set data-j attribute");
 
             board.append_child(&square).unwrap();
@@ -148,9 +142,22 @@ async fn get_selected_square() -> Result<Position, &'static str> {
 
                 let mouse_event = event.dyn_into::<MouseEvent>().unwrap();
                 let target = mouse_event.target().unwrap();
-                let square = target
+                let square = if target
+                .dyn_ref::<HtmlImageElement>()
+                .is_some()
+            {
+                target
                     .dyn_into::<HtmlElement>()
-                    .expect("Failed to cast target into an HtmlElement");
+                    .expect("Failed to cast target into an HtmlElement")
+                    .parent_element()
+                    .expect("Failed to get parent element")
+                    .dyn_into::<HtmlElement>()
+                    .expect("Failed to cast parent element into an Element")
+            } else {
+                target
+                    .dyn_into::<HtmlElement>()
+                    .expect("Failed to cast target into an HtmlElement")
+            };
 
                 let i = square
                     .get_attribute("data-i")
@@ -204,8 +211,6 @@ async fn get_selected_square() -> Result<Position, &'static str> {
 
     position
 }
-
-
 
 // Render loop function
 pub fn render_loop(board: Rc<RefCell<Board>>) {
