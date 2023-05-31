@@ -1,10 +1,23 @@
-mod utils;
-mod piece;
-mod board;
+extern crate web_sys;
 
-use core::convert::TryFrom;
+mod board;
+mod game;
+mod piece;
+mod utils;
+
+use board::Board;
+
+use piece::{Color, Position};
+use std::cell::RefCell;
+use std::rc::Rc;
+use web_sys::Event;
+
+use futures::channel::oneshot;
+use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::*;
-use piece::{Color, Position, Piece};
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{window, Element, HtmlElement, HtmlImageElement, MouseEvent};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -12,272 +25,298 @@ use piece::{Color, Position, Piece};
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-#[wasm_bindgen]
-extern {
-    fn alert(s: &str);
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
+const ROW: usize = 8;
+const COL: usize = 8;
+
+#[wasm_bindgen(start)]
+pub async fn run() -> Result<(), JsValue> {
+    let board = Rc::new(RefCell::new(Board::new()));
+    create_board();
+    place_pieces_on_board(&board.borrow());
+
+    // render loop goes here
+    render_loop(Rc::clone(&board));
+
+    Ok(())
 }
 
-#[wasm_bindgen]
-pub fn greet() {
-    alert("Hello, chess!");
+pub fn handle_square_click(row: usize, col: usize) {
+    // Handle the square click event in Rust
+    // You can perform any necessary logic here
+    // For example, you can access the selected square and perform actions based on it
+    // Here, we simply print the selected square
+    log!("Selected square: ({}, {})", row, col);
 }
 
-// A move that can be applied to a board.
-// When applied to a board, the board assumes that the move is
-// being applied for the current turn's player.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Move {
-    // If the current player is white, move the king to the C1 square, and the kingside rook to
-    // the D1 square. If the current player is black, however, move the king to the C8 square,
-    // and the kingside rook to the D8 square.
-    //
-    // Castling can only be performed if
-    // 1. The king has not moved at all since the game began
-    // 2. The respective rook (kingside or queenside) has also not moved
-    // 3. The square adjacent to the king on the respective side is not threatened by an enemy piece
-    //
-    // If all of these conditions are satisfied, castling is a legal move
-    QueenSideCastle,
-    // If the current player is white, move the king to the G1 square, and the kingside rook to
-    // the F1 square. If the current player is black, however, move the king to the G8 square,
-    // and the kingside rook to the F8 square.
-    KingSideCastle,
-    // Move a piece from one square to another, with optional promotion.
-    // This can allow the player to capture another piece, by
-    // simply moving a piece to the position of an enemy piece.
-    //
-    // Additionally, this can be used to [en-passant capture](https://en.wikipedia.org/wiki/En_passant),
-    // even though the en-passant square itself does not contain any capturable pieces.
-    //
-    // En-passant captures MUST be performed with a pawn, upon an enemy pawn
-    // that has just surpassed it by move two squares. An en-passant capture
-    // must also be performed the turn immediately after the enemy pawn surpasses
-    // the allied pawn. After the one turn a player has to en-passant capture, the
-    // en-passant square is forgotten and can no longer be used.
-    Piece(Position, Position),
-    Promotion(Position, Position, Piece),
-    // When played by another player, it awards victory to the other.
-    Resign,
-}
+fn create_board() {
+    let window = window().expect("no global `window` exists");
+    let document = window.document().expect("should have a document on window");
+    let board = document
+        .get_elements_by_class_name("chessboard")
+        .item(0)
+        .expect("should have a chessboard element");
 
-// Try to parse a Move from a string.
-//
-// Possible valid formats include:
-// - `"resign"`
-// - `"resigns"`
-// - `"castle queenside"`
-// - `"O-O-O"` (correct notation)
-// - `"o-o-o"` (incorrect notation, but will accept)
-// - `"0-0-0"` (incorrect notation, but will accept)
-// - `"castle kingside"`
-// - `"O-O"` (correct notation)
-// - `"o-o"` (incorrect notation, but will accept)
-// - `"0-0"` (incorrect notation, but will accept)
-// - `"e2e4"`
-// - `"e2 e4"`
-// - `"e2 to e4"`
-//
-// Parsing a move such as `"knight to e4"` or `"Qxe4"` will NOT work.
-impl TryFrom<String> for Move {
-    type Error = String;
-
-    fn try_from(repr: String) -> Result<Self, Self::Error> {
-        let repr = repr.trim().to_string();
-
-        Ok(match repr.as_str() {
-            "resign" | "resigns" => Self::Resign,
-            "queenside castle" | "castle queenside" | "O-O-O" | "0-0-0" | "o-o-o" => {
-                Self::QueenSideCastle
-            }
-            "kingside castle" | "castle kingside" | "O-O" | "0-0" | "o-o" => Self::KingSideCastle,
-            other => {
-                let words = other.split_whitespace().collect::<Vec<&str>>();
-
-                if words.len() == 1 && words[0].len() == 4 {
-                    Self::Piece(
-                        Position::pgn(&words[0][..2])?,
-                        Position::pgn(&words[0][2..4])?,
-                    )
-                } else if words.len() == 2 {
-                    Self::Piece(Position::pgn(words[0])?, Position::pgn(words[1])?)
-                } else if words.len() == 3 && words[1] == "to" {
-                    Self::Piece(Position::pgn(words[0])?, Position::pgn(words[2])?)
-                } else if words.len() == 4 && words[1] == "to" {
-                    let piece = Piece::try_from(words[3])?;
-                    if piece.is_king() || piece.is_pawn() {
-                        return Err(String::from("invalid promotion"));
-                    }
-                    Self::Promotion(Position::pgn(words[0])?, Position::pgn(words[2])?, piece)
+    for i in 0..ROW {
+        for j in 0..COL {
+            let square = document
+                .create_element("div")
+                .expect("failed to create element")
+                .dyn_into::<Element>()
+                .expect("failed to cast element");
+            square.set_class_name("square");
+            square
+                .class_list()
+                .add_1(if (i + j) % 2 == 0 {
+                    "lightSq"
                 } else {
-                    return Err(format!("invalid move format `{}`", other));
-                }
-            }
-        })
+                    "darkSq"
+                })
+                .unwrap();
+            square.set_attribute("data-i", &i.to_string())
+                .expect("failed to set data-i attribute");
+            square.set_attribute("data-j", &j.to_string())
+                .expect("failed to set data-j attribute");
+
+            board.append_child(&square).unwrap();
+        }
     }
 }
 
-impl Move {
-    pub fn parse(repr: String) -> Result<Self, String> {
-        Self::try_from(repr)
+pub fn create_piece_imgage(id: &str) -> HtmlImageElement {
+    let window = window().expect("no global `window` exists");
+    let document = window.document().expect("should have a document on window");
+    let img = document
+        .create_element("img")
+        .expect("failed to create element")
+        .dyn_into::<HtmlImageElement>()
+        .expect("failed to cast element");
+    img.set_src(&format!("./img/{}.svg", id));
+    img
+}
+
+pub fn place_pieces_on_board(board: &Board) {
+    let window = window().expect("no global `window` exists");
+    let document = window.document().expect("should have a document on window");
+    let squares = document.get_elements_by_class_name("square");
+
+    for (i, square) in board.squares().iter().enumerate() {
+        let square_element = squares
+            .item(i as u32)
+            .expect("should have a square element")
+            .dyn_into::<Element>()
+            .expect("failed to cast element");
+        if let Some(image_element) = square_element.query_selector("img").unwrap() {
+            square_element
+                .remove_child(&image_element)
+                .expect("failed to remove child");
+        }
+
+        if let Some(piece) = square.get_piece() {
+            let chess_color = match piece.get_color() {
+                Color::White => "w",
+                Color::Black => "b",
+            };
+            let chess_type = piece.get_type();
+            let chess_id = format!("{}{}", chess_color, chess_type);
+            let img = create_piece_imgage(&chess_id);
+            square_element
+                .append_child(&img)
+                .expect("failed to append child");
+        }
     }
 }
 
-// Evaluate a board and extract information, such as the best and worst moves.
-pub trait Evaluate: Sized {
-    // Get the value of the board for a given color.
-    // This subtracts the opponents value, and accounts for piece positions
-    // and material value.
-    fn value_for(&self, color: Color) -> f64;
+async fn get_selected_square() -> Result<Position, &'static str> {
+    let (sender, receiver) = futures::channel::oneshot::channel();
+    let mut sender = Some(sender);
 
-    // Get the current player's color.
-    fn get_current_player_color(&self) -> Color;
+    let closure = Closure::wrap(Box::new(move |event: Event| {
+        let mouse_event = event.dyn_into::<MouseEvent>().unwrap();
+        let target = mouse_event.target().unwrap();
+        let square = target
+            .dyn_into::<HtmlElement>()
+            .expect("Failed to cast target into an HtmlElement");
 
-    // Get the legal moves for the current player.
-    fn get_legal_moves(&self) -> Vec<Move>;
+        let i = square
+            .get_attribute("data-i")
+            .and_then(|i| i.parse::<i32>().ok());
+        let j = square
+            .get_attribute("data-j")
+            .and_then(|j| j.parse::<i32>().ok());
 
-    // Apply a move to the board for evaluation.
-    fn apply_eval_move(&self, m: Move) -> Self;
-
-    // Get the best move for the current player with `depth` number of moves
-    // of lookahead.
-    //
-    // This method returns
-    // 1. The best move
-    // 2. The number of boards evaluated to come to a conclusion
-    // 3. The rating of the best move
-    //
-    // It's best not to use the rating value by itself for anything, as it
-    // is relative to the other player's move ratings as well.
-    fn get_best_next_move(&self, depth: i32) -> (Move, u64, f64) {
-        let legal_moves = self.get_legal_moves();
-        let mut best_move_value = -999999.0;
-        let mut best_move = Move::Resign;
-
-        let color = self.get_current_player_color();
-
-        let mut board_count = 0;
-        for m in &legal_moves {
-            let child_board_value = self.apply_eval_move(*m).minimax(
-                depth,
-                -1000000.0,
-                1000000.0,
-                false,
-                color,
-                &mut board_count,
-            );
-            if child_board_value >= best_move_value {
-                best_move = *m;
-                best_move_value = child_board_value;
+        match (i, j) {
+            (Some(i), Some(j)) => {
+                let position = Position::new(i, j);
+                if let Some(sender) = sender.take() {
+                    sender.send(Ok(position)).unwrap();
+                }
+            }
+            _ => {
+                if let Some(sender) = sender.take() {
+                    sender.send(Err("Invalid square")).unwrap();
+                }
             }
         }
+    }) as Box<dyn FnMut(_)>);
 
-        (best_move, board_count, best_move_value)
+    let window = web_sys::window().expect("no global `window` exists");
+    let document = window.document().expect("should have a document on window");
+    let squares = document.get_elements_by_class_name("square");
+
+    for i in 0..squares.length() {
+        if let Some(square) = squares.item(i) {
+            square
+                .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())
+                .unwrap();
+        }
     }
 
-    // Get the move for the oppsite player
-    fn get_worst_next_move(&self, depth: i32) -> (Move, u64, f64) {
-        let legal_moves = self.get_legal_moves();
-        let mut best_move_value = -999999.0;
-        let mut best_move = Move::Resign;
+    let position = receiver.await.unwrap();
 
-        let color = self.get_current_player_color();
-
-        let mut board_count = 0;
-        for m in &legal_moves {
-            let child_board_value = self.apply_eval_move(*m).minimax(
-                depth,
-                -1000000.0,
-                1000000.0,
-                true,
-                !color,
-                &mut board_count,
-            );
-
-            if child_board_value >= best_move_value {
-                best_move = *m;
-                best_move_value = child_board_value;
-            }
+    for i in 0..squares.length() {
+        if let Some(square) = squares.item(i) {
+            square
+                .remove_event_listener_with_callback("click", closure.as_ref().unchecked_ref())
+                .unwrap();
         }
-
-        (best_move, board_count, best_move_value)
     }
 
-    // Perform minimax on a certain position, and get the minimum or maximum value
-    // for a board. To get the best move, you minimize the values of the possible outcomes from your
-    // own position, and maximize the values of the replies made by the other player.
-    //
-    // In other words, choose moves with the assumption that your opponent will make the
-    // best possible replies to your moves. Moves that are seemingly good, but are easily countered,
-    // are categorically eliminated by this algorithm.
-    fn minimax(
-        &self,
-        depth: i32,
-        mut alpha: f64,
-        mut beta: f64,
-        is_maximizing: bool,
-        getting_move_for: Color,
-        board_count: &mut u64,
-    ) -> f64 {
-        *board_count += 1;
+    closure.forget();
 
-        if depth == 0 {
-            return self.value_for(getting_move_for);
-        }
-
-        let legal_moves = self.get_legal_moves();
-        let mut best_move_value;
-
-        if is_maximizing {
-            best_move_value = -999999.0;
-
-            for m in &legal_moves {
-                let child_board_value = self.apply_eval_move(*m).minimax(
-                    depth - 1,
-                    alpha,
-                    beta,
-                    !is_maximizing,
-                    getting_move_for,
-                    board_count,
-                );
-
-                if child_board_value > best_move_value {
-                    best_move_value = child_board_value;
-                }
-
-                if best_move_value > alpha {
-                    alpha = best_move_value
-                }
-
-                if beta <= alpha {
-                    return best_move_value;
-                }
-            }
-        } else {
-            best_move_value = 999999.0;
-
-            for m in &legal_moves {
-                let child_board_value = self.apply_eval_move(*m).minimax(
-                    depth - 1,
-                    alpha,
-                    beta,
-                    !is_maximizing,
-                    getting_move_for,
-                    board_count,
-                );
-                if child_board_value < best_move_value {
-                    best_move_value = child_board_value;
-                }
-
-                if best_move_value < beta {
-                    beta = best_move_value
-                }
-
-                if beta <= alpha {
-                    return best_move_value;
-                }
-            }
-        }
-
-        best_move_value
-    }
+    position
 }
+
+
+// Render loop function
+pub fn render_loop(board: Rc<RefCell<Board>>) {
+    let board_clone = Rc::clone(&board);
+
+    let first_selected_square_future = get_selected_square();
+    wasm_bindgen_futures::spawn_local(async move {
+        let first_selected_square = first_selected_square_future.await;
+        match first_selected_square {
+            Ok(first_square) => {
+                // Do something with the first selected square
+                // ...
+                log!("First square selected: {:?}", first_square);
+
+                // Wait for the user to select the second square
+                let second_selected_square: Result<Position, &'static str> =
+                    get_selected_square().await;
+                match second_selected_square {
+                    Ok(second_square) => {
+                        // Do something with the second selected square
+                        // ...
+                        log!("Second square selected: {:?}", second_square);
+                        
+                        // Perform game logic based on the selected squares
+
+                    }
+                    Err(err) => {
+                        log!("Error selecting second square: {}", err);
+                    }
+                }
+            }
+            Err(err) => {
+                log!("Error selecting first square: {}", err);
+            }
+        }
+    });
+
+    let closure: Closure<dyn FnMut()> = Closure::new(move || {
+        render_loop(Rc::clone(&board_clone));
+    });
+
+    if let Some(window) = window() {
+        window
+            .request_animation_frame(closure.as_ref().unchecked_ref())
+            .unwrap();
+    }
+
+    closure.forget();
+    log!("Continuing render loop...");
+}
+
+// pub fn render_loop(board: Rc<RefCell<Board>>, selected_square: Rc<RefCell<SquareSelection>>) {
+//     // Check if the game is over
+//     if unsafe { GAME_OVER } {
+//         log!("Game is over.");
+//         return;
+//     }
+
+//     // Wait for selected_square to become true
+//     if !selected_square.borrow().is_selected() {
+//         let board_clone = Rc::clone(&board);
+//         let selected_square_clone = Rc::clone(&selected_square);
+//         let closure: Closure<dyn FnMut()> = Closure::new(move || {
+//             render_loop(Rc::clone(&board_clone), Rc::clone(&selected_square_clone));
+//         });
+
+//         if let Some(window) = window() {
+//             window
+//                 .request_animation_frame(closure.as_ref().unchecked_ref())
+//                 .unwrap();
+//         }
+//         closure.forget();
+//         log!("Waiting for square selection...");
+//         return;
+//     }
+
+//     // When the selected_square becomes true, perform the following steps
+//     log!("Square selected!");
+
+//     // Perform the game logic based on the selected square
+//     let row = 7  - selected_square.borrow().get_row().unwrap();
+//     let col = selected_square.borrow().get_col().unwrap();
+//     let from = Position::new(row as i32, col as i32);
+//     let to = Position::new((row - 1) as i32, col as i32);
+
+//     let m = Move::Piece(from, to);
+//     log!("{}", m);
+
+//     match board.borrow_mut().play_move(m) {
+//         GameResult::Continuing(_) => {
+//             log!("Continuing");
+//         },
+//         GameResult::Victory(_) => {
+//             log!("Victory");
+//            return;
+//         },
+//         GameResult::Stalemate => {
+//             log!("Stalemate");
+//             return;
+//         },
+//         GameResult::IllegalMove(_) => {
+//             log!("IllegalMove");
+//             selected_square.borrow_mut().set_off();
+//             return render_loop(Rc::clone(&board), selected_square);
+//         },
+//     }
+
+//     // Clear the selected square after each move
+//     selected_square.borrow_mut().set_off();
+
+//     let board_clone = Rc::clone(&board);
+//     let selected_square_clone = Rc::clone(&selected_square);
+//     let closure: Closure<dyn FnMut()> = Closure::new(move || {
+//         render_loop(Rc::clone(&board_clone), Rc::clone(&selected_square_clone));
+//     });
+
+//     if let Some(window) = window() {
+//         window
+//             .request_animation_frame(closure.as_ref().unchecked_ref())
+//             .unwrap();
+//     }
+
+//     closure.forget();
+//     log!("Continuing render loop...");
+// }
+
+// pub fn update_board(board: &Board) {
+//     place_pieces_on_board(board);
+// }

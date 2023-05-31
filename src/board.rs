@@ -1,10 +1,8 @@
 extern crate js_sys;
 use crate::{piece::{Color, Position, Piece, BLACK, WHITE}, 
-            Evaluate,
-            Move};
+            game::{ Move, GameResult, Evaluate }};
 
 use wasm_bindgen::prelude::*;
-use serde_wasm_bindgen::to_value;
 
 
 #[wasm_bindgen]
@@ -31,12 +29,6 @@ impl From<Piece> for Square {
 
 #[wasm_bindgen]
 impl Square {
-    pub fn get_piece_js(&self) -> JsValue {
-        match &self.piece {
-            Some(piece) => to_value(piece).unwrap(),
-            None => JsValue::NULL,
-        }
-    }
 
 }
 
@@ -221,23 +213,49 @@ pub struct Board {
 }
 
 impl Evaluate for Board {
-    fn value_for(&self, color: Color) -> f64 {
-        todo!()
+    #[inline]
+    fn value_for(&self, ally_color: Color) -> f64 {
+        self.squares
+            .iter()
+            .map(|square| match square.get_piece() {
+                Some(piece) => {
+                    if piece.get_color() == ally_color {
+                        piece.get_weighted_value()
+                    } else {
+                        -piece.get_weighted_value()
+                    }
+                }
+                None => 0.0,
+            })
+            .sum()
     }
 
+    #[inline]
     fn get_current_player_color(&self) -> Color {
-        todo!()
+        self.turn
     }
 
-    fn get_legal_moves(&self) -> Vec<crate::Move> {
-        todo!()
+    #[inline]
+    fn apply_eval_move(&self, m: Move) -> Self {
+        self.apply_move(m).change_turn()
     }
 
-    fn apply_eval_move(&self, m: crate::Move) -> Self {
-        todo!()
+    #[inline]
+    fn get_legal_moves(&self) -> Vec<Move> {
+        let mut result = vec![];
+        let color = self.get_current_player_color();
+        for square in &self.squares {
+            if let Some(piece) = square.get_piece() {
+                if piece.get_color() == color {
+                    result.extend(piece.get_legal_moves(self))
+                }
+            }
+        }
+
+        result
     }
-    //...
 }
+
 
 #[wasm_bindgen]
 impl Board {
@@ -275,6 +293,20 @@ impl Board {
 
 }
 impl Board {
+    // Create the default board for the Horde variant
+    pub fn horde() -> Self {
+        BoardBuilder::from(Board::new())
+            .row(Piece::Pawn(WHITE, A1))
+            .row(Piece::Pawn(WHITE, A2))
+            .row(Piece::Pawn(WHITE, A3))
+            .row(Piece::Pawn(WHITE, A4))
+            .piece(Piece::Pawn(WHITE, F5))
+            .piece(Piece::Pawn(WHITE, G5))
+            .piece(Piece::Pawn(WHITE, B5))
+            .piece(Piece::Pawn(WHITE, C5))
+            .build()
+    }
+
     pub fn empty() -> Self {
         Self {
             squares: [EMPTY_SQUARE; 64],
@@ -339,6 +371,10 @@ impl Board {
     #[inline]
     fn get_square(&mut self, pos: Position) -> &mut Square {
         &mut self.squares[((7 - pos.get_row()) * 8 + pos.get_col()) as usize]
+    }
+
+    pub fn squares(&self) -> &[Square; 64] {
+        &self.squares
     }
 
     pub fn squares_u8_value(&self) -> [u8; 64]  {
@@ -441,7 +477,7 @@ impl Board {
                 if piece.get_color() == ally_color {
                     continue;
                 }
-                if piece.is_leagal_attack(pos, self) {
+                if piece.is_legal_attack(pos, self) {
                     return true
                 }
             }
@@ -578,7 +614,7 @@ impl Board {
                 Some(Piece::Pawn(c, pos)) => {
                     let piece = Piece::Pawn(c, pos);
                     ((if let Some(en_passant) = self.en_passant {
-                        (en_passant == from.pawn_up(ally_color).next_left()
+                        (en_passant == from.pawn_up(player_color).next_left()
                             || en_passant == from.pawn_up(player_color).next_left()
                                 && en_passant == to)
                             && c == player_color
@@ -587,15 +623,165 @@ impl Board {
                     }) || piece.is_legal_move(to, self) && piece.get_color() == player_color)
                         && !self.apply_move(m).is_in_check(player_color)
                 }
+                Some(piece) => {
+                    piece.is_legal_move(to, self)
+                        && piece.get_color() == player_color
+                        && !self.apply_move(m).is_in_check(player_color)
+                }
 
+                _ => false,
             },
-            Move::Promotion(_, _, _) => todo!(),
-            Move::Resign => todo!(),
+            Move::Promotion(from, to, promotion) => {
+                match self.get_piece(from) {
+                    Some(piece) => {
+                        piece.is_pawn()
+                            && (to.get_row() == 0 || to.get_row() == 7)
+                            && !(promotion.is_king() || promotion.is_pawn())
+                            && piece.is_legal_move(to, self)
+                            && piece.get_color() == player_color
+                            && !self.apply_move(m).is_in_check(player_color)
+                    }
+
+                    _ => false,
+                }
+            },
+            Move::Resign => true,
         }
     }
     
-    //is_legal_move()
+    // Does the respective player have sufficient material?
+    pub fn has_sufficient_material(&self, color: Color) -> bool {
+        let mut pieces = vec![];
+        for square in &self.squares {
+            if let Some(piece) = square.get_piece() {
+                if piece.get_color() == color {
+                    pieces.push(piece);
+                }
+            }
+        }
 
+        pieces.sort();
+
+        if pieces.len() == 0 {
+            false
+        } else if pieces.len() == 1 && pieces[0].is_king() {
+            false
+        } else if pieces.len() == 2 && pieces[0].is_king() && pieces[1].is_knight() {
+            false
+        } else if pieces.len() == 2 && pieces[0].is_king() && pieces[1].is_bishop() {
+            false
+        } else if pieces.len() == 3
+            && pieces[0].is_king()
+            && pieces[1].is_knight()
+            && pieces[2].is_knight()
+        {
+            false
+        } else if pieces.len() == 3
+            && pieces[0].is_king()
+            && pieces[1].is_bishop()
+            && pieces[2].is_bishop()
+        {
+            false
+        } else {
+            true
+        }
+    }
+
+    // Does the respective player have infsufficient material?
+    pub fn has_insufficient_material(&self, color: Color) -> bool {
+        !self.has_sufficient_material(color)
+    }
+
+    // Is the current player in stalement?
+    pub fn is_stalemate(&self) -> bool {
+        (self.get_legal_moves().is_empty() && !self.is_in_check(self.get_current_player_color()))
+            || (self.has_insufficient_material(self.turn)
+                && self.has_insufficient_material(!self.turn))
+    }
+
+    // Is the current player in checkmate?
+    pub fn is_checkmate(&self) -> bool {
+        self.is_in_check(self.get_current_player_color()) && self.get_legal_moves().is_empty()
+    }
+
+    // Change the current turn to the next player
+    #[inline]
+    pub fn change_turn(mut self) -> Self {
+        self.turn = !self.turn;
+        self
+    }
+
+    fn apply_move(&self, m: Move) -> Self {
+        match m {
+            Move::KingSideCastle => {
+                if let Some(king_pos) = self.get_king_pos(self.turn) {
+                    let rook_pos = match self.turn {
+                        WHITE => Position::new(0, 7),
+                        BLACK => Position::new(7, 7),
+                    };
+                    self.move_piece(king_pos, rook_pos.next_left(), None)
+                        .move_piece(rook_pos, king_pos, None)
+                } else {
+                    *self
+                }
+            },
+            Move::QueenSideCastle => {
+                if let Some(king_pos) = self.get_king_pos(self.turn) {
+                    let rook_pos = match self.turn {
+                        WHITE => Position::new(0, 0),
+                        BLACK => Position::new(7, 0),
+                    };
+                    self.move_piece(king_pos, king_pos.next_left().next_left(), None)
+                        .move_piece(rook_pos, king_pos.next_left(), None)
+                } else {
+                    *self
+                }
+            },
+
+            Move::Piece(from, to) => {
+                let mut result = self.move_piece(from, to, None);
+
+                if let (Some(en_passant), Some(Piece::Pawn(player_color, _))) =
+                    (self.en_passant, self.get_piece(from))
+                {
+                    if (en_passant == from.pawn_up(player_color).next_left()
+                        || en_passant == from.pawn_up(player_color).next_right())
+                        && en_passant == to
+                    {
+                        result.squares[((7 - en_passant.pawn_back(player_color).get_row()) * 8
+                                        + en_passant.get_col())
+                                        as usize] = EMPTY_SQUARE;
+                    }
+                }
+
+                result
+            },
+
+            Move::Promotion(from, to, promotion) => self.move_piece(from, to, Some(promotion)),
+
+            Move::Resign => self.remove_all(self.turn),
+        }
+    }
+
+    // Play a move and confirm is is legal
+    pub fn play_move(&self, m: Move) -> GameResult {
+        let current_color = self.get_turn_color();
+
+        if m == Move::Resign {
+            GameResult::Victory(!current_color)
+        } else if self.is_legal_move(m, current_color) {
+            let next_turn = self.apply_move(m).change_turn();
+            if next_turn.is_checkmate() {
+                GameResult::Victory(current_color)
+            } else if next_turn.is_stalemate() {
+                GameResult::Stalemate
+            } else {
+                GameResult::Continuing(next_turn)
+            }
+        } else {
+            GameResult::IllegalMove(m)
+        }
+    }
 }
 
 pub const A1: Position = Position::new(0, 0);

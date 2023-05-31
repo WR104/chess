@@ -1,8 +1,9 @@
-use crate::{board::Board, Move};
+use crate::{board::Board, game::Move};
 use core::convert::TryFrom;
-use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[wasm_bindgen]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Color {
     White,
     Black,
@@ -10,6 +11,19 @@ pub enum Color {
 
 pub const WHITE: Color = Color::White;
 pub const BLACK: Color = Color::Black;
+
+impl core::fmt::Display for Color {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::White => "White",
+                Self::Black => "Black",
+            }
+        )
+    }
+}
 
 //A color can be inverted using the "!" operator.
 impl core::ops::Not for Color {
@@ -25,10 +39,32 @@ impl core::ops::Not for Color {
 /* =================================================================================
 =================================================================================*/
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[wasm_bindgen]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Position {
     row: i32,
     col: i32,
+}
+
+impl core::fmt::Display for Position {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
+        write!(
+            f,
+            "{}{}",
+            match self.col {
+                0 => 'a',
+                1 => 'b',
+                2 => 'c',
+                3 => 'd',
+                4 => 'e',
+                5 => 'f',
+                6 => 'g',
+                7 => 'h',
+                _ => '?',
+            },
+            self.row + 1
+        )
+    }
 }
 
 impl Position {
@@ -332,8 +368,7 @@ impl Position {
 
 /* =================================================================================
 =================================================================================*/
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Piece {
     King(Color, Position),
     Queen(Color, Position),
@@ -372,6 +407,18 @@ impl Piece {
             Self::Knight(_, _) => "knight",
             Self::Pawn(_, _) => "pawn",
         }
+    }
+
+    #[inline]
+    pub fn get_type(&self) -> &str {
+        match self {
+            Self::King(_, _) => "K",
+            Self::Queen(_, _) => "Q",
+            Self::Rook(_, _) => "R",
+            Self::Bishop(_, _) => "B",
+            Self::Knight(_, _) => "K",
+            Self::Pawn(_, _) => "P",
+        } 
     }
 
     #[inline]
