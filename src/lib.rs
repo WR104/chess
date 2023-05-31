@@ -8,6 +8,7 @@ mod utils;
 use board::Board;
 
 use piece::{Color, Position};
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
 use web_sys::Event;
@@ -29,6 +30,11 @@ macro_rules! log {
     ( $( $t:tt )* ) => {
         web_sys::console::log_1(&format!( $( $t )* ).into());
     }
+}
+
+thread_local! {
+    // ONly allow select one square at the time
+    static IS_SELECTING: Cell<bool> = Cell::new(false);
 }
 const ROW: usize = 8;
 const COL: usize = 8;
@@ -133,40 +139,48 @@ pub fn place_pieces_on_board(board: &Board) {
 
 async fn get_selected_square() -> Result<Position, &'static str> {
     let (sender, receiver) = futures::channel::oneshot::channel();
-    let mut sender = Some(sender);
+    let sender = Rc::new(RefCell::new(Some(sender)));
 
     let closure = Closure::wrap(Box::new(move |event: Event| {
-        let mouse_event = event.dyn_into::<MouseEvent>().unwrap();
-        let target = mouse_event.target().unwrap();
-        let square = target
-            .dyn_into::<HtmlElement>()
-            .expect("Failed to cast target into an HtmlElement");
+        IS_SELECTING.with(|is_selecting| {
+            if !is_selecting.get() {
+                is_selecting.set(true);
 
-        let i = square
-            .get_attribute("data-i")
-            .and_then(|i| i.parse::<i32>().ok());
-        let j = square
-            .get_attribute("data-j")
-            .and_then(|j| j.parse::<i32>().ok());
+                let mouse_event = event.dyn_into::<MouseEvent>().unwrap();
+                let target = mouse_event.target().unwrap();
+                let square = target
+                    .dyn_into::<HtmlElement>()
+                    .expect("Failed to cast target into an HtmlElement");
 
-        match (i, j) {
-            (Some(i), Some(j)) => {
-                let position = Position::new(i, j);
-                if let Some(sender) = sender.take() {
-                    sender.send(Ok(position)).unwrap();
+                let i = square
+                    .get_attribute("data-i")
+                    .and_then(|i| i.parse::<i32>().ok());
+                let j = square
+                    .get_attribute("data-j")
+                    .and_then(|j| j.parse::<i32>().ok());
+
+                match (i, j) {
+                    (Some(i), Some(j)) => {
+                        let position = Position::new(i, j);
+                        if let Some(sender) = sender.borrow_mut().take() {
+                            sender.send(Ok(position)).unwrap();
+                        }
+                    }
+                    _ => {
+                        if let Some(sender) = sender.borrow_mut().take() {
+                            sender.send(Err("Invalid square")).unwrap();
+                        }
+                    }
                 }
+
+                is_selecting.set(false);
             }
-            _ => {
-                if let Some(sender) = sender.take() {
-                    sender.send(Err("Invalid square")).unwrap();
-                }
-            }
-        }
+        });
     }) as Box<dyn FnMut(_)>);
 
-    let window = web_sys::window().expect("no global `window` exists");
+    let window = web_sys::window().expect("no global `window” exists");
     let document = window.document().expect("should have a document on window");
-    let squares = document.get_elements_by_class_name("square");
+    let squares = document.query_selector_all(".square").unwrap();
 
     for i in 0..squares.length() {
         if let Some(square) = squares.item(i) {
@@ -192,10 +206,12 @@ async fn get_selected_square() -> Result<Position, &'static str> {
 }
 
 
+
 // Render loop function
 pub fn render_loop(board: Rc<RefCell<Board>>) {
     let board_clone = Rc::clone(&board);
 
+    // Get the first selected square
     let first_selected_square_future = get_selected_square();
     wasm_bindgen_futures::spawn_local(async move {
         let first_selected_square = first_selected_square_future.await;
@@ -213,9 +229,8 @@ pub fn render_loop(board: Rc<RefCell<Board>>) {
                         // Do something with the second selected square
                         // ...
                         log!("Second square selected: {:?}", second_square);
-                        
-                        // Perform game logic based on the selected squares
 
+                        // Perform game logic based on the selected squares
                     }
                     Err(err) => {
                         log!("Error selecting second square: {}", err);
@@ -226,20 +241,10 @@ pub fn render_loop(board: Rc<RefCell<Board>>) {
                 log!("Error selecting first square: {}", err);
             }
         }
-    });
 
-    let closure: Closure<dyn FnMut()> = Closure::new(move || {
+        // Continue the render loop
         render_loop(Rc::clone(&board_clone));
     });
-
-    if let Some(window) = window() {
-        window
-            .request_animation_frame(closure.as_ref().unchecked_ref())
-            .unwrap();
-    }
-
-    closure.forget();
-    log!("Continuing render loop...");
 }
 
 // pub fn render_loop(board: Rc<RefCell<Board>>, selected_square: Rc<RefCell<SquareSelection>>) {
