@@ -20,6 +20,9 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{window, Element, HtmlElement, HtmlImageElement, MouseEvent};
 
+use crate::game::GameResult;
+use crate::game::Move;
+
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
 #[cfg(feature = "wee_alloc")]
@@ -142,22 +145,19 @@ async fn get_selected_square() -> Result<Position, &'static str> {
 
                 let mouse_event = event.dyn_into::<MouseEvent>().unwrap();
                 let target = mouse_event.target().unwrap();
-                let square = if target
-                .dyn_ref::<HtmlImageElement>()
-                .is_some()
-            {
-                target
-                    .dyn_into::<HtmlElement>()
-                    .expect("Failed to cast target into an HtmlElement")
-                    .parent_element()
-                    .expect("Failed to get parent element")
-                    .dyn_into::<HtmlElement>()
-                    .expect("Failed to cast parent element into an Element")
-            } else {
-                target
-                    .dyn_into::<HtmlElement>()
-                    .expect("Failed to cast target into an HtmlElement")
-            };
+                let square = if target.dyn_ref::<HtmlImageElement>().is_some() {
+                    target
+                        .dyn_into::<HtmlElement>()
+                        .expect("Failed to cast target into an HtmlElement")
+                        .parent_element()
+                        .expect("Failed to get parent element")
+                        .dyn_into::<HtmlElement>()
+                        .expect("Failed to cast parent element into an Element")
+                } else {
+                    target
+                        .dyn_into::<HtmlElement>()
+                        .expect("Failed to cast target into an HtmlElement")
+                };
 
                 let i = square
                     .get_attribute("data-i")
@@ -212,9 +212,15 @@ async fn get_selected_square() -> Result<Position, &'static str> {
     position
 }
 
+// Convert the front end Positon to the chess Position
+pub fn position_convert(position: Position) -> Position {
+    let row =  7 - position.get_row();
+    let col = position.get_col();
+    Position::new(row, col)
+}
 // Render loop function
 pub fn render_loop(board: Rc<RefCell<Board>>) {
-    let board_clone = Rc::clone(&board);
+    let mut board_clone = Rc::clone(&board);
 
     // Get the first selected square
     let first_selected_square_future = get_selected_square();
@@ -235,7 +241,28 @@ pub fn render_loop(board: Rc<RefCell<Board>>) {
                         // ...
                         log!("Second square selected: {:?}", second_square);
 
+                        let from = position_convert(first_square);
+                        let to = position_convert(second_square);
+                        let m = Move::Piece(from, to);
                         // Perform game logic based on the selected squares
+                        match board.borrow_mut().play_move(m) {
+                            GameResult::Continuing(next_board) => {
+                                log!("Continuing"); 
+                                board_clone = Rc::new(RefCell::new(next_board));
+                            }
+                            GameResult::Victory(_) => {
+                                log!("Victory");
+                                return;
+                            }
+                            GameResult::Stalemate => {
+                                log!("Stalemate");
+                                return;
+                            }
+                            GameResult::IllegalMove(_) => {
+                                log!("IllegalMove");
+                                return render_loop(Rc::clone(&board));
+                            }
+                        }
                     }
                     Err(err) => {
                         log!("Error selecting second square: {}", err);

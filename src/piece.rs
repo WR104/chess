@@ -416,7 +416,7 @@ impl Piece {
             Self::Queen(_, _) => "Q",
             Self::Rook(_, _) => "R",
             Self::Bishop(_, _) => "B",
-            Self::Knight(_, _) => "K",
+            Self::Knight(_, _) => "N",
             Self::Pawn(_, _) => "P",
         } 
     }
