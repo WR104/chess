@@ -5,7 +5,6 @@ use crate::{piece::{Color, Position, Piece, BLACK, WHITE},
 use wasm_bindgen::prelude::*;
 
 
-#[wasm_bindgen]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Square {
     piece: Option<Piece>,
@@ -27,10 +26,6 @@ impl From<Piece> for Square {
     }
 }
 
-#[wasm_bindgen]
-impl Square {
-
-}
 
 impl Square {
     pub fn get_piece(&self) -> Option<Piece> {
@@ -50,7 +45,7 @@ impl From<Board> for BoardBuilder {
 
 impl Default for BoardBuilder {
     fn default() -> Self {
-        let mut board = Board::empty();
+        let board = Board::empty();
         Self { board }
     }
 }
@@ -287,9 +282,6 @@ impl Board {
         self.squares.len()
     }
 
-    pub fn squares_u8_value_js(&self) -> Box<[u8]> {
-        Box::new(self.squares_u8_value())
-    }
 
 }
 impl Board {
@@ -377,29 +369,6 @@ impl Board {
         &self.squares
     }
 
-    pub fn squares_u8_value(&self) -> [u8; 64]  {
-        let mut result = [0; 64];
-        for (i, square) in self.squares.iter().enumerate() {
-            result[i] = match square.piece {
-                None => 0,
-                Some(Piece::Pawn(Color::White, _)) => 1,
-                Some(Piece::Knight(Color::White, _)) => 2,
-                Some(Piece::Bishop(Color::White, _)) => 3,
-                Some(Piece::Rook(Color::White, _)) => 4,
-                Some(Piece::Queen(Color::White, _)) => 5,
-                Some(Piece::King(Color::White, _)) => 6,
-                Some(Piece::Pawn(Color::Black, _)) => 7,
-                Some(Piece::Knight(Color::Black, _)) => 8,
-                Some(Piece::Bishop(Color::Black, _)) => 9,
-                Some(Piece::Rook(Color::Black, _)) => 10,
-                Some(Piece::Queen(Color::Black, _)) => 11,
-                Some(Piece::King(Color::Black, _)) => 12,
-            };
-        }
-
-        result
-    }
-
     #[inline]
     fn add_piece(&mut self, piece: Piece) {
         let pos = piece.get_pos();
@@ -445,6 +414,7 @@ impl Board {
         self.get_piece(pos) != None
     }
 
+    #[inline]
     pub fn has_no_piece(&self, pos: Position) -> bool {
         self.get_piece(pos) == None
     }
@@ -462,6 +432,7 @@ impl Board {
     }
 
     // Is a square threatened by an enemy piece?
+    #[inline]
     pub fn is_threatened(&self, pos: Position, ally_color: Color) -> bool {
         for (i, square) in self.squares.iter().enumerate() {
             let row = 7 - i / 8;
@@ -486,6 +457,7 @@ impl Board {
     }
 
     // Is the king of a given color in check
+    #[inline]
     pub fn is_in_check(&self, color: Color) -> bool {
         if let Some(king_pos) = self.get_king_pos(color) {
             self.is_threatened(king_pos, color)
@@ -494,6 +466,7 @@ impl Board {
         }
     }
 
+    #[inline]
     fn move_piece(&self, from: Position, to: Position, promotion: Option<Piece>) -> Self {
         let mut result = *self;
         result.en_passant = None;
@@ -548,6 +521,7 @@ impl Board {
     }
 
     // Can a given player castle kingside?
+    #[inline]
     pub fn can_kingside_castle(&self, color: Color) -> bool {
         let right_of_king = Position::king_pos(color).next_right();
         match color {
@@ -574,6 +548,7 @@ impl Board {
         }
     }
 
+    #[inline]
     pub fn can_queenside_castle(&self, color: Color) -> bool {
         match color {
             WHITE => {
@@ -599,6 +574,7 @@ impl Board {
         }
     }
 
+    #[inline]
     pub fn get_castling_rights(&self, color: Color) -> CastlingRights {
         match color {
             WHITE => self.white_castling_rights,
@@ -650,6 +626,7 @@ impl Board {
     }
     
     // Does the respective player have sufficient material?
+    #[inline]
     pub fn has_sufficient_material(&self, color: Color) -> bool {
         let mut pieces = vec![];
         for square in &self.squares {
@@ -688,11 +665,13 @@ impl Board {
     }
 
     // Does the respective player have infsufficient material?
+    #[inline]
     pub fn has_insufficient_material(&self, color: Color) -> bool {
         !self.has_sufficient_material(color)
     }
 
     // Is the current player in stalement?
+    #[inline]
     pub fn is_stalemate(&self) -> bool {
         (self.get_legal_moves().is_empty() && !self.is_in_check(self.get_current_player_color()))
             || (self.has_insufficient_material(self.turn)
@@ -700,6 +679,7 @@ impl Board {
     }
 
     // Is the current player in checkmate?
+    #[inline]
     pub fn is_checkmate(&self) -> bool {
         self.is_in_check(self.get_current_player_color()) && self.get_legal_moves().is_empty()
     }
@@ -711,6 +691,7 @@ impl Board {
         self
     }
 
+    #[inline]
     fn apply_move(&self, m: Move) -> Self {
         match m {
             Move::KingSideCastle => {
@@ -764,6 +745,7 @@ impl Board {
     }
 
     // Play a move and confirm is is legal
+    #[inline]
     pub fn play_move(&self, m: Move) -> GameResult {
         let current_color = self.get_turn_color();
 
@@ -788,70 +770,70 @@ pub const A1: Position = Position::new(0, 0);
 pub const A2: Position = Position::new(1, 0);
 pub const A3: Position = Position::new(2, 0);
 pub const A4: Position = Position::new(3, 0);
-pub const A5: Position = Position::new(4, 0);
-pub const A6: Position = Position::new(5, 0);
+// pub const A5: Position = Position::new(4, 0);
+// pub const A6: Position = Position::new(5, 0);
 pub const A7: Position = Position::new(6, 0);
 pub const A8: Position = Position::new(7, 0);
 
 pub const B1: Position = Position::new(0, 1);
-pub const B2: Position = Position::new(1, 1);
-pub const B3: Position = Position::new(2, 1);
-pub const B4: Position = Position::new(3, 1);
+// pub const B2: Position = Position::new(1, 1);
+// pub const B3: Position = Position::new(2, 1);
+// pub const B4: Position = Position::new(3, 1);
 pub const B5: Position = Position::new(4, 1);
-pub const B6: Position = Position::new(5, 1);
-pub const B7: Position = Position::new(6, 1);
+// pub const B6: Position = Position::new(5, 1);
+// pub const B7: Position = Position::new(6, 1);
 pub const B8: Position = Position::new(7, 1);
 
 pub const C1: Position = Position::new(0, 2);
-pub const C2: Position = Position::new(1, 2);
-pub const C3: Position = Position::new(2, 2);
-pub const C4: Position = Position::new(3, 2);
+// pub const C2: Position = Position::new(1, 2);
+// pub const C3: Position = Position::new(2, 2);
+// pub const C4: Position = Position::new(3, 2);
 pub const C5: Position = Position::new(4, 2);
-pub const C6: Position = Position::new(5, 2);
-pub const C7: Position = Position::new(6, 2);
+// pub const C6: Position = Position::new(5, 2);
+// pub const C7: Position = Position::new(6, 2);
 pub const C8: Position = Position::new(7, 2);
 
 pub const D1: Position = Position::new(0, 3);
-pub const D2: Position = Position::new(1, 3);
-pub const D3: Position = Position::new(2, 3);
-pub const D4: Position = Position::new(3, 3);
-pub const D5: Position = Position::new(4, 3);
-pub const D6: Position = Position::new(5, 3);
-pub const D7: Position = Position::new(6, 3);
+// pub const D2: Position = Position::new(1, 3);
+// pub const D3: Position = Position::new(2, 3);
+// pub const D4: Position = Position::new(3, 3);
+// pub const D5: Position = Position::new(4, 3);
+// pub const D6: Position = Position::new(5, 3);
+// pub const D7: Position = Position::new(6, 3);
 pub const D8: Position = Position::new(7, 3);
 
 pub const E1: Position = Position::new(0, 4);
-pub const E2: Position = Position::new(1, 4);
-pub const E3: Position = Position::new(2, 4);
-pub const E4: Position = Position::new(3, 4);
-pub const E5: Position = Position::new(4, 4);
-pub const E6: Position = Position::new(5, 4);
-pub const E7: Position = Position::new(6, 4);
+// pub const E2: Position = Position::new(1, 4);
+// pub const E3: Position = Position::new(2, 4);
+// pub const E4: Position = Position::new(3, 4);
+// pub const E5: Position = Position::new(4, 4);
+// pub const E6: Position = Position::new(5, 4);
+// pub const E7: Position = Position::new(6, 4);
 pub const E8: Position = Position::new(7, 4);
 
 pub const F1: Position = Position::new(0, 5);
-pub const F2: Position = Position::new(1, 5);
-pub const F3: Position = Position::new(2, 5);
-pub const F4: Position = Position::new(3, 5);
+// pub const F2: Position = Position::new(1, 5);
+// pub const F3: Position = Position::new(2, 5);
+// pub const F4: Position = Position::new(3, 5);
 pub const F5: Position = Position::new(4, 5);
-pub const F6: Position = Position::new(5, 5);
-pub const F7: Position = Position::new(6, 5);
+// pub const F6: Position = Position::new(5, 5);
+// pub const F7: Position = Position::new(6, 5);
 pub const F8: Position = Position::new(7, 5);
 
 pub const G1: Position = Position::new(0, 6);
-pub const G2: Position = Position::new(1, 6);
-pub const G3: Position = Position::new(2, 6);
-pub const G4: Position = Position::new(3, 6);
+// pub const G2: Position = Position::new(1, 6);
+// pub const G3: Position = Position::new(2, 6);
+// pub const G4: Position = Position::new(3, 6);
 pub const G5: Position = Position::new(4, 6);
-pub const G6: Position = Position::new(5, 6);
-pub const G7: Position = Position::new(6, 6);
+// pub const G6: Position = Position::new(5, 6);
+// pub const G7: Position = Position::new(6, 6);
 pub const G8: Position = Position::new(7, 6);
 
 pub const H1: Position = Position::new(0, 7);
-pub const H2: Position = Position::new(1, 7);
-pub const H3: Position = Position::new(2, 7);
-pub const H4: Position = Position::new(3, 7);
-pub const H5: Position = Position::new(4, 7);
-pub const H6: Position = Position::new(5, 7);
-pub const H7: Position = Position::new(6, 7);
+// pub const H2: Position = Position::new(1, 7);
+// pub const H3: Position = Position::new(2, 7);
+// pub const H4: Position = Position::new(3, 7);
+// pub const H5: Position = Position::new(4, 7);
+// pub const H6: Position = Position::new(5, 7);
+// pub const H7: Position = Position::new(6, 7);
 pub const H8: Position = Position::new(7, 7);

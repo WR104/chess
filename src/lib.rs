@@ -7,17 +7,16 @@ mod utils;
 
 use board::Board;
 
+use game::get_next_move;
 use piece::{Color, Position};
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
 use web_sys::Event;
 
-use futures::channel::oneshot;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::JsFuture;
 use web_sys::{window, Element, HtmlElement, HtmlImageElement, MouseEvent};
 
 use crate::game::GameResult;
@@ -41,12 +40,13 @@ thread_local! {
 }
 const ROW: usize = 8;
 const COL: usize = 8;
+static TURN: Color = Color::White;
 
 #[wasm_bindgen(start)]
 pub async fn run() -> Result<(), JsValue> {
     let board = Rc::new(RefCell::new(Board::new()));
     create_board();
-    place_pieces_on_board(&board.borrow());
+    update_board(&board.borrow());
 
     // render loop goes here
     render_loop(Rc::clone(&board));
@@ -78,11 +78,15 @@ fn create_board() {
                     "darkSq"
                 })
                 .unwrap();
+
+            // convert the i & j to row and col of the chess board
+            let row = 7 - i;
+            let col = j;
             square
-                .set_attribute("data-i", &i.to_string())
+                .set_attribute("data-i", &row.to_string())
                 .expect("failed to set data-i attribute");
             square
-                .set_attribute("data-j", &j.to_string())
+                .set_attribute("data-j", &col.to_string())
                 .expect("failed to set data-j attribute");
 
             board.append_child(&square).unwrap();
@@ -102,7 +106,7 @@ pub fn create_piece_imgage(id: &str) -> HtmlImageElement {
     img
 }
 
-pub fn place_pieces_on_board(board: &Board) {
+pub fn update_board(board: &Board) {
     let window = window().expect("no global `window` exists");
     let document = window.document().expect("should have a document on window");
     let squares = document.get_elements_by_class_name("square");
@@ -212,148 +216,91 @@ async fn get_selected_square() -> Result<Position, &'static str> {
     position
 }
 
-// Convert the front end Positon to the chess Position
-pub fn position_convert(position: Position) -> Position {
-    let row =  7 - position.get_row();
-    let col = position.get_col();
-    Position::new(row, col)
-}
 // Render loop function
 pub fn render_loop(board: Rc<RefCell<Board>>) {
     let mut board_clone = Rc::clone(&board);
 
-    // Get the first selected square
-    let first_selected_square_future = get_selected_square();
-    wasm_bindgen_futures::spawn_local(async move {
-        let first_selected_square = first_selected_square_future.await;
-        match first_selected_square {
-            Ok(first_square) => {
-                // Do something with the first selected square
-                // ...
-                log!("First square selected: {:?}", first_square);
+    if board.borrow().get_turn_color() == TURN {
+        // Get the first selected square
+        let first_selected_square_future = get_selected_square();
+        wasm_bindgen_futures::spawn_local(async move {
+            let first_selected_square = first_selected_square_future.await;
+            match first_selected_square {
+                Ok(first_square) => {
+                    // Do something with the first selected square
+                    // log!("First square selected: {:?}", first_square);
 
-                // Wait for the user to select the second square
-                let second_selected_square: Result<Position, &'static str> =
-                    get_selected_square().await;
-                match second_selected_square {
-                    Ok(second_square) => {
-                        // Do something with the second selected square
-                        // ...
-                        log!("Second square selected: {:?}", second_square);
 
-                        let from = position_convert(first_square);
-                        let to = position_convert(second_square);
-                        let m = Move::Piece(from, to);
-                        // Perform game logic based on the selected squares
-                        match board.borrow_mut().play_move(m) {
-                            GameResult::Continuing(next_board) => {
-                                log!("Continuing"); 
-                                board_clone = Rc::new(RefCell::new(next_board));
-                            }
-                            GameResult::Victory(_) => {
-                                log!("Victory");
-                                return;
-                            }
-                            GameResult::Stalemate => {
-                                log!("Stalemate");
-                                return;
-                            }
-                            GameResult::IllegalMove(_) => {
-                                log!("IllegalMove");
-                                return render_loop(Rc::clone(&board));
+                    update_board(&board_clone.borrow());
+                    
+                    // Wait for the user to select the second square
+                    let second_selected_square: Result<Position, &'static str> =
+                        get_selected_square().await;
+                    match second_selected_square {
+                        Ok(second_square) => {
+                            // Do something with the second selected square
+                            // log!("Second square selected: {:?}", second_square);
+
+                            let from: Position = first_square;
+                            let to = second_square;
+                            let m = Move::Piece(from, to);
+                            // Perform game logic based on the selected squares
+                            match board.borrow_mut().play_move(m) {
+                                GameResult::Continuing(next_board) => {
+                                    log!("Continuing");
+                                    board_clone = Rc::new(RefCell::new(next_board));
+                                }
+                                GameResult::Victory(_) => {
+                                    log!("Victory");
+                                    return;
+                                }
+                                GameResult::Stalemate => {
+                                    log!("Stalemate");
+                                    return;
+                                }
+                                GameResult::IllegalMove(_) => {
+                                    log!("IllegalMove");
+                                }
                             }
                         }
-                    }
-                    Err(err) => {
-                        log!("Error selecting second square: {}", err);
+                        Err(err) => {
+                            log!("Error selecting second square: {}", err);
+                        }
                     }
                 }
+                Err(err) => {
+                    log!("Error selecting first square: {}", err);
+                }
             }
-            Err(err) => {
-                log!("Error selecting first square: {}", err);
+
+            update_board(&board_clone.borrow());
+            render_loop(Rc::clone(&board_clone));
+        });
+    } else {
+        // Computer makes decisions
+        let m = get_next_move(&board.borrow(), true);
+
+        match board.borrow_mut().play_move(m) {
+            GameResult::Continuing(next_board) => {
+                log!("Continuing");
+                board_clone = Rc::new(RefCell::new(next_board));
+                update_board(&board_clone.borrow());
+            }
+            GameResult::Victory(_) => {
+                log!("Victory");
+                update_board(&board_clone.borrow());
+                return;
+            }
+            GameResult::Stalemate => {
+                log!("Stalemate");
+                update_board(&board_clone.borrow());
+                return;
+            }
+            GameResult::IllegalMove(_) => {
+                log!("IllegalMove");
             }
         }
 
-        // Continue the render loop
         render_loop(Rc::clone(&board_clone));
-    });
+    }
 }
-
-// pub fn render_loop(board: Rc<RefCell<Board>>, selected_square: Rc<RefCell<SquareSelection>>) {
-//     // Check if the game is over
-//     if unsafe { GAME_OVER } {
-//         log!("Game is over.");
-//         return;
-//     }
-
-//     // Wait for selected_square to become true
-//     if !selected_square.borrow().is_selected() {
-//         let board_clone = Rc::clone(&board);
-//         let selected_square_clone = Rc::clone(&selected_square);
-//         let closure: Closure<dyn FnMut()> = Closure::new(move || {
-//             render_loop(Rc::clone(&board_clone), Rc::clone(&selected_square_clone));
-//         });
-
-//         if let Some(window) = window() {
-//             window
-//                 .request_animation_frame(closure.as_ref().unchecked_ref())
-//                 .unwrap();
-//         }
-//         closure.forget();
-//         log!("Waiting for square selection...");
-//         return;
-//     }
-
-//     // When the selected_square becomes true, perform the following steps
-//     log!("Square selected!");
-
-//     // Perform the game logic based on the selected square
-//     let row = 7  - selected_square.borrow().get_row().unwrap();
-//     let col = selected_square.borrow().get_col().unwrap();
-//     let from = Position::new(row as i32, col as i32);
-//     let to = Position::new((row - 1) as i32, col as i32);
-
-//     let m = Move::Piece(from, to);
-//     log!("{}", m);
-
-//     match board.borrow_mut().play_move(m) {
-//         GameResult::Continuing(_) => {
-//             log!("Continuing");
-//         },
-//         GameResult::Victory(_) => {
-//             log!("Victory");
-//            return;
-//         },
-//         GameResult::Stalemate => {
-//             log!("Stalemate");
-//             return;
-//         },
-//         GameResult::IllegalMove(_) => {
-//             log!("IllegalMove");
-//             selected_square.borrow_mut().set_off();
-//             return render_loop(Rc::clone(&board), selected_square);
-//         },
-//     }
-
-//     // Clear the selected square after each move
-//     selected_square.borrow_mut().set_off();
-
-//     let board_clone = Rc::clone(&board);
-//     let selected_square_clone = Rc::clone(&selected_square);
-//     let closure: Closure<dyn FnMut()> = Closure::new(move || {
-//         render_loop(Rc::clone(&board_clone), Rc::clone(&selected_square_clone));
-//     });
-
-//     if let Some(window) = window() {
-//         window
-//             .request_animation_frame(closure.as_ref().unchecked_ref())
-//             .unwrap();
-//     }
-
-//     closure.forget();
-//     log!("Continuing render loop...");
-// }
-
-// pub fn update_board(board: &Board) {
-//     place_pieces_on_board(board);
-// }

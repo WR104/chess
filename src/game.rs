@@ -311,9 +311,9 @@ pub trait Evaluate: Sized {
     }
 }
 
-pub fn get_cpu_move(b: &Board, best: bool) -> Move {
+pub fn get_next_move(b: &Board, best: bool) -> Move {
     let (m, _, _) = if best {
-        b.get_best_next_move(4)
+        b.get_best_next_move(3)
     } else {
         b.get_worst_next_move(4)
     };
