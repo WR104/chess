@@ -101,7 +101,7 @@ pub fn create_piece_imgage(id: &str) -> HtmlImageElement {
         .expect("failed to create element")
         .dyn_into::<HtmlImageElement>()
         .expect("failed to cast element");
-    img.set_src(&format!("./img/{}.svg", id));
+    img.set_src(&format!("https://raw.githubusercontent.com/WR104/chess/main/www/img/{}.svg", id));
     img
 }
 
