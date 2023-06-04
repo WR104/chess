@@ -14,7 +14,6 @@ default = ["console_error_panic_hook"]
 wasm-bindgen = {version = "0.2.86"}
 wasm-bindgen-futures = "0.4"
 futures = "0.3"
-js-sys = "0.3.35"
 web-sys = { version = "0.3.63", features = ['Window', 'Document', 'Element', 'HtmlCollection', 
 'DomTokenList', 'console', 'HtmlImageElement', 'NodeList', 'MouseEvent'] }
 
@@ -34,4 +33,5 @@ wasm-bindgen-test = "0.3.13"
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
+lto = true
 opt-level = "s"

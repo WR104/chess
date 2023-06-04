@@ -9,8 +9,7 @@ use board::Board;
 
 use game::get_next_move;
 use piece::{Color, Position};
-use std::cell::Cell;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use web_sys::Event;
 
@@ -117,9 +116,11 @@ pub fn update_board(board: &Board) {
             .expect("should have a square element")
             .dyn_into::<Element>()
             .expect("failed to cast element");
-        if let Some(image_element) = square_element.query_selector("img").unwrap() {
+
+        // Remove every things on a square (piece, hint)
+        while let Some(child) = square_element.first_child() {
             square_element
-                .remove_child(&image_element)
+                .remove_child(&child)
                 .expect("failed to remove child");
         }
 
@@ -216,6 +217,75 @@ async fn get_selected_square() -> Result<Position, &'static str> {
     position
 }
 
+// !!! Must check if the selected square has a piece
+pub fn get_hint_pos(board: &Board, pos: Position) -> Vec<Position> {
+    let mut result: Vec<Position> = Vec::new();
+    let turn = board.get_turn_color();
+    if let Some(piece) = board.get_piece(pos) {
+        // get all
+        let moves = piece.get_legal_moves(board);
+        for m in moves {
+            match m {
+                Move::QueenSideCastle => match turn {
+                    Color::White => result.push(Position::new(0, 6)),
+                    Color::Black => result.push(Position::new(7, 6)),
+                },
+                Move::KingSideCastle => match turn {
+                    Color::White => result.push(Position::new(0, 2)),
+                    Color::Black => result.push(Position::new(7, 2)),
+                },
+                Move::Piece(_from, to) => {
+                    result.push(to);
+                }
+                Move::Promotion(_from, to, _) => {
+                    result.push(to);
+                }
+                _ => {}
+            }
+        }
+
+    }
+
+    result
+}
+
+pub fn update_hint_squares(hint_pos: Vec<Position>) {
+    let window = window().expect("no global `window` exists");
+    let document = window.document().expect("should have a document on window");
+    let squares = document.get_elements_by_class_name("square");
+
+    for pos in hint_pos {
+        let index = (7 - pos.get_row()) * 8 + pos.get_col();
+
+        let square_element = squares
+            .item(index as u32)
+            .expect("should have a square element")
+            .dyn_into::<Element>()
+            .expect("failed to cast element");
+
+        let hint_box = document
+            .create_element("div")
+            .expect("failed to create element")
+            .dyn_into::<Element>()
+            .expect("failed to cast element");
+
+        hint_box.set_class_name("hint");
+
+        // Check if an <img> child is present
+        if let Some(image_element) = square_element.query_selector("img").unwrap() {
+            // Append the hint_box as the second child
+            square_element
+                .insert_before(&hint_box, Some(&image_element))
+                .expect("failed to insert hint_box before img_element");
+        } else {
+            // Append the hint_box as the last child
+            square_element
+                .append_child(&hint_box)
+                .expect("failed to append child");
+        }
+    }
+}
+
 // Render loop function
 pub fn render_loop(board: Rc<RefCell<Board>>) {
     let mut board_clone = Rc::clone(&board);
@@ -227,21 +297,26 @@ pub fn render_loop(board: Rc<RefCell<Board>>) {
             let first_selected_square = first_selected_square_future.await;
             match first_selected_square {
                 Ok(first_square) => {
+                    let from: Position = first_square;
+
                     // Do something with the first selected square
-                    // log!("First square selected: {:?}", first_square);
 
+                    // Get the hint squares
+                    let hint_positions = get_hint_pos(&board.borrow(), from);
+                    if !hint_positions.is_empty() {
+                        // Check that the selected square has a piece
+                        update_hint_squares(hint_positions);
+                    }
 
-                    update_board(&board_clone.borrow());
-                    
                     // Wait for the user to select the second square
                     let second_selected_square: Result<Position, &'static str> =
                         get_selected_square().await;
                     match second_selected_square {
                         Ok(second_square) => {
                             // Do something with the second selected square
-                            // log!("Second square selected: {:?}", second_square);
 
-                            let from: Position = first_square;
+                            update_board(&board_clone.borrow());
+
                             let to = second_square;
                             let m = Move::Piece(from, to);
                             // Perform game logic based on the selected squares
@@ -250,12 +325,14 @@ pub fn render_loop(board: Rc<RefCell<Board>>) {
                                     log!("Continuing");
                                     board_clone = Rc::new(RefCell::new(next_board));
                                 }
-                                GameResult::Victory(_) => {
-                                    log!("Victory");
+                                GameResult::Victory(next_board, _) => {
+                                    log!("You won the game!");
+                                    board_clone = Rc::new(RefCell::new(next_board));
+                                    update_board(&board_clone.borrow());
                                     return;
                                 }
                                 GameResult::Stalemate => {
-                                    log!("Stalemate");
+                                    log!("Drawn Game");
                                     return;
                                 }
                                 GameResult::IllegalMove(_) => {
@@ -286,13 +363,14 @@ pub fn render_loop(board: Rc<RefCell<Board>>) {
                 board_clone = Rc::new(RefCell::new(next_board));
                 update_board(&board_clone.borrow());
             }
-            GameResult::Victory(_) => {
-                log!("Victory");
+            GameResult::Victory(next_board, _) => {
+                log!("You lost the game!");
+                board_clone = Rc::new(RefCell::new(next_board));
                 update_board(&board_clone.borrow());
                 return;
             }
             GameResult::Stalemate => {
-                log!("Stalemate");
+                log!("Drawm game");
                 update_board(&board_clone.borrow());
                 return;
             }

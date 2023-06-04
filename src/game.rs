@@ -9,7 +9,7 @@ pub enum GameResult {
     Continuing(Board),
     // One player, the victor, checkmated the other.
     // This stores the color of the winner.
-    Victory(Color),
+    Victory(Board, Color),
     // The game is drawn. This can be a result of the current player
     // having no legal moves and not being in check, or because
     // both players have insufficient material on the board.
@@ -313,7 +313,7 @@ pub trait Evaluate: Sized {
 
 pub fn get_next_move(b: &Board, best: bool) -> Move {
     let (m, _, _) = if best {
-        b.get_best_next_move(3)
+        b.get_best_next_move(2)
     } else {
         b.get_worst_next_move(4)
     };

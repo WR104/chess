@@ -582,6 +582,7 @@ impl Piece {
         }
     }
 
+    #[inline]
     pub(crate) fn get_legal_moves(&self, board: &Board) -> Vec<Move> {
         let mut result = Vec::new();
         match *self {
@@ -609,7 +610,7 @@ impl Piece {
                     result.push(Move::Piece(pos, up))
                 }
 
-                if up_left.is_on_board() && board.has_enemy_piece(up, ally_color) {
+                if up_left.is_on_board() && board.has_enemy_piece(up_left, ally_color) {
                     result.push(Move::Piece(pos, up_left))
                 }
 
@@ -618,8 +619,7 @@ impl Piece {
                 }
             }
 
-            // !!! What if the king is in check?
-            Piece::King(ally_color, pos) => {
+            Self::King(ally_color, pos) => {
                 for p in &[
                     pos.next_left(),
                     pos.next_right(),
@@ -641,7 +641,7 @@ impl Piece {
                 }
             }
 
-            Piece::Queen(ally_color, pos) => {
+            Self::Queen(ally_color, pos) => {
                 for row in 0..8 {
                     let new_pos = Position::new(row, pos.get_col());
                     if new_pos != pos
@@ -651,7 +651,6 @@ impl Piece {
                         result.push(Move::Piece(pos, new_pos));
                     }
                 }
-
                 for col in 0..8 {
                     let new_pos = Position::new(pos.get_row(), col);
                     if new_pos != pos
@@ -674,7 +673,8 @@ impl Piece {
                     }
                 }
             }
-            Piece::Rook(ally_color, pos) => {
+
+            Self::Rook(ally_color, pos) => {
                 for row in 0..8 {
                     let new_pos = Position::new(row, pos.get_col());
                     if new_pos != pos
@@ -694,7 +694,8 @@ impl Piece {
                     }
                 }
             }
-            Piece::Bishop(ally_color, pos) => {
+
+            Self::Bishop(ally_color, pos) => {
                 for row in 0..8 {
                     for col in 0..8 {
                         let new_pos = Position::new(row, col);
@@ -707,7 +708,8 @@ impl Piece {
                     }
                 }
             }
-            Piece::Knight(ally_color, pos) => {
+
+            Self::Knight(ally_color, pos) => {
                 for p in &[
                     pos.next_left().next_left().next_above(),
                     pos.next_left().next_above().next_above(),
@@ -724,6 +726,7 @@ impl Piece {
                 }
             }
         }
+
         let color = self.get_color();
         result
             .into_iter()

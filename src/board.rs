@@ -1,9 +1,5 @@
-extern crate js_sys;
 use crate::{piece::{Color, Position, Piece, BLACK, WHITE}, 
             game::{ Move, GameResult, Evaluate }};
-
-use wasm_bindgen::prelude::*;
-
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Square {
@@ -65,19 +61,19 @@ impl BoardBuilder {
         self
     }
 
-    pub fn column(mut self, piece: Piece) -> Self {
-        let mut pos = piece.get_pos();
-        while pos.get_row() > 0 {
-            pos = pos.next_below()
-        }
+    // pub fn column(mut self, piece: Piece) -> Self {
+    //     let mut pos = piece.get_pos();
+    //     while pos.get_row() > 0 {
+    //         pos = pos.next_below()
+    //     }
 
-        for _ in 0..8 {
-            *self.board.get_square(pos) = Square::from(piece.move_to(pos));
-            pos = pos.next_above();
-        }
+    //     for _ in 0..8 {
+    //         *self.board.get_square(pos) = Square::from(piece.move_to(pos));
+    //         pos = pos.next_above();
+    //     }
 
-        self
-    }
+    //     self
+    // }
 
     pub fn piece(mut self, piece: Piece) -> Self {
         let pos = piece.get_pos();
@@ -91,53 +87,53 @@ impl BoardBuilder {
         self
     }
 
-    pub fn disable_castling(mut self) -> Self {
-        self.board.black_castling_rights.disable_all();
-        self.board.white_castling_rights.disable_all();
-        self
-    }
+    // pub fn disable_castling(mut self) -> Self {
+    //     self.board.black_castling_rights.disable_all();
+    //     self.board.white_castling_rights.disable_all();
+    //     self
+    // }
 
-    pub fn enable_queenside_castle(mut self, color: Color) -> Self {
-        match color {
-            WHITE => self.board.white_castling_rights.enable_queenside(),
-            BLACK => self.board.black_castling_rights.enable_queenside(),
-        }
-        self
-    }
+    // pub fn enable_queenside_castle(mut self, color: Color) -> Self {
+    //     match color {
+    //         WHITE => self.board.white_castling_rights.enable_queenside(),
+    //         BLACK => self.board.black_castling_rights.enable_queenside(),
+    //     }
+    //     self
+    // }
 
-    pub fn disable_queenside_castle(mut self, color: Color) -> Self {
-        match color {
-            WHITE => self.board.white_castling_rights.disable_queenside(),
-            BLACK => self.board.black_castling_rights.disable_queenside(),
-        }
-        self
-    }
+    // pub fn disable_queenside_castle(mut self, color: Color) -> Self {
+    //     match color {
+    //         WHITE => self.board.white_castling_rights.disable_queenside(),
+    //         BLACK => self.board.black_castling_rights.disable_queenside(),
+    //     }
+    //     self
+    // }
 
-    pub fn enable_kingside_castle(mut self, color: Color) -> Self {
-        match color {
-            WHITE => self.board.white_castling_rights.enable_kingside(),
-            BLACK => self.board.black_castling_rights.enable_kingside(),
-        }
-        self
-    }
+    // pub fn enable_kingside_castle(mut self, color: Color) -> Self {
+    //     match color {
+    //         WHITE => self.board.white_castling_rights.enable_kingside(),
+    //         BLACK => self.board.black_castling_rights.enable_kingside(),
+    //     }
+    //     self
+    // }
 
-    pub fn disable_kingside_castle(mut self, color: Color) -> Self {
-        match color {
-            WHITE => self.board.white_castling_rights.disable_kingside(),
-            BLACK => self.board.black_castling_rights.disable_kingside(),
-        }
-        self
-    }
+    // pub fn disable_kingside_castle(mut self, color: Color) -> Self {
+    //     match color {
+    //         WHITE => self.board.white_castling_rights.disable_kingside(),
+    //         BLACK => self.board.black_castling_rights.disable_kingside(),
+    //     }
+    //     self
+    // }
 
-    pub fn set_en_passant(mut self, position: Option<Position>) -> Self {
-        self.board.en_passant = position;
-        self
-    }
+    // pub fn set_en_passant(mut self, position: Option<Position>) -> Self {
+    //     self.board.en_passant = position;
+    //     self
+    // }
 
-    pub fn set_turn(mut self, color: Color) -> Self {
-        self.board = self.board.set_turn(color);
-        self
-    }
+    // pub fn set_turn(mut self, color: Color) -> Self {
+    //     self.board = self.board.set_turn(color);
+    //     self
+    // }
 
     pub fn build(self) -> Board {
         self.board
@@ -194,7 +190,6 @@ impl CastlingRights {
     }
 }
 
-#[wasm_bindgen]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Board {
     squares: [Square; 64],
@@ -252,7 +247,6 @@ impl Evaluate for Board {
 }
 
 
-#[wasm_bindgen]
 impl Board {
     pub fn new() -> Board {
         BoardBuilder::default()
@@ -740,7 +734,7 @@ impl Board {
 
             Move::Promotion(from, to, promotion) => self.move_piece(from, to, Some(promotion)),
 
-            Move::Resign => self.remove_all(self.turn),
+            Move::Resign => *self,
         }
     }
 
@@ -750,11 +744,11 @@ impl Board {
         let current_color = self.get_turn_color();
 
         if m == Move::Resign {
-            GameResult::Victory(!current_color)
+            GameResult::Victory(*self, !current_color)
         } else if self.is_legal_move(m, current_color) {
             let next_turn = self.apply_move(m).change_turn();
             if next_turn.is_checkmate() {
-                GameResult::Victory(current_color)
+                GameResult::Victory(next_turn, current_color)
             } else if next_turn.is_stalemate() {
                 GameResult::Stalemate
             } else {
