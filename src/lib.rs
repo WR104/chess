@@ -8,7 +8,7 @@ mod utils;
 use board::Board;
 
 use game::get_next_move;
-use piece::{Color, Position};
+use piece::{Color, Position, Piece};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use web_sys::Event;
@@ -39,7 +39,7 @@ thread_local! {
 }
 const ROW: usize = 8;
 const COL: usize = 8;
-static TURN: Color = Color::White;
+static PLAYERCOLOR: Color = Color::White;
 
 #[wasm_bindgen(start)]
 pub async fn run() -> Result<(), JsValue> {
@@ -227,12 +227,12 @@ pub fn get_hint_pos(board: &Board, pos: Position) -> Vec<Position> {
         for m in moves {
             match m {
                 Move::QueenSideCastle => match turn {
-                    Color::White => result.push(Position::new(0, 6)),
-                    Color::Black => result.push(Position::new(7, 6)),
-                },
-                Move::KingSideCastle => match turn {
                     Color::White => result.push(Position::new(0, 2)),
                     Color::Black => result.push(Position::new(7, 2)),
+                },
+                Move::KingSideCastle => match turn {
+                    Color::White => result.push(Position::new(0, 6)),
+                    Color::Black => result.push(Position::new(7, 6)),
                 },
                 Move::Piece(_from, to) => {
                     result.push(to);
@@ -290,7 +290,7 @@ pub fn update_hint_squares(hint_pos: Vec<Position>) {
 pub fn render_loop(board: Rc<RefCell<Board>>) {
     let mut board_clone = Rc::clone(&board);
 
-    if board.borrow().get_turn_color() == TURN {
+    if board.borrow().get_turn_color() == PLAYERCOLOR {
         // Get the first selected square
         let first_selected_square_future = get_selected_square();
         wasm_bindgen_futures::spawn_local(async move {
@@ -318,7 +318,25 @@ pub fn render_loop(board: Rc<RefCell<Board>>) {
                             update_board(&board_clone.borrow());
 
                             let to = second_square;
-                            let m = Move::Piece(from, to);
+
+                            // Need to update the promotion feature
+                            let m = match board.borrow().get_piece(from){
+                                // Need to update promotion feature
+                                Some(Piece::Pawn(_, _)) => Move::Piece(from, to),
+                                Some(Piece::King(_, _)) => {
+                                    // Regular move
+                                    if to.is_adjacent_to(from) {
+                                        Move::Piece(from, to)
+                                    } else {
+                                        if to.get_col() > from.get_col() {
+                                            Move::KingSideCastle
+                                        } else {
+                                            Move::QueenSideCastle
+                                        }
+                                    }
+                                }
+                                _ => Move::Piece(from, to),
+                            };
                             // Perform game logic based on the selected squares
                             match board.borrow_mut().play_move(m) {
                                 GameResult::Continuing(next_board) => {

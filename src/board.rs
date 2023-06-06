@@ -695,7 +695,7 @@ impl Board {
                         BLACK => Position::new(7, 7),
                     };
                     self.move_piece(king_pos, rook_pos.next_left(), None)
-                        .move_piece(rook_pos, king_pos, None)
+                        .move_piece(rook_pos, king_pos.next_right(), None)
                 } else {
                     *self
                 }
