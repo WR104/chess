@@ -1,12 +1,18 @@
-# Chess
+# <p align="center> ♕ Chess </p>
+
+<div align="center>                            
+
+ ██████╗██╗  ██╗███████╗███████╗███████╗
+██╔════╝██║  ██║██╔════╝██╔════╝██╔════╝
+██║     ███████║█████╗  ███████╗███████╗
+██║     ██╔══██║██╔══╝  ╚════██║╚════██║
+╚██████╗██║  ██║███████╗███████║███████║
+ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝
+
+ </div>
 
 This project is a chess application that allows users to play chess online. It is built using Rust, WebAssembly (WASM), JavaScript, HTML, and CSS.
 
-## Table of Contents
-
-- [Introduction](#introduction)
-- [Technologies](#technologies)
-- [Getting Started](#getting-started)
 
 ## Introduction
 
@@ -30,14 +36,22 @@ The chess project utilizes the following technologies:
 
 ## Getting Started
 
+### Prerequisites
+
+Before we get started, make sure you have the following tools installed:
+
+- Rust (https://www.rust-lang.org/tools/install)
+- Node.js (https://nodejs.org/en/download/)
+- wasm-pack (https://rustwasm.github.io/wasm-pack/installer/)
+
 To run the chess project locally on your machine, follow these steps:
 
 1. Clone the repository: `git clone https://github.com/WR104/chess.git`
 2. Navigate to the project directory: `cd chess`
-3. Install dependencies: `npm install`
-4. Build the project: `cargo build`
-5. Start the local development server: `npm start`
-6. Open your web browser and visit `http://localhost:8080` to access the chess application.
+3. Build the wasm files: `wasm-pack build`
+4. Navigate to web dictionary: `cd www`
+5. Install dependencies: `npm install`
+6. Start the local development server: `npm run start`
+7. Open your web browser and visit `http://localhost:8080` to access the chess application.
 
-Ensure that you have Rust, Node.js, and npm installed on your machine before proceeding.
 
