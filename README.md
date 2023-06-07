@@ -1,6 +1,6 @@
-# <p align="center> ♕ Chess </p>
+# <p align="center"> ♕ Chess </p>
 
-<div align="center>                            
+<div align="center">                            
 
  ██████╗██╗  ██╗███████╗███████╗███████╗
 ██╔════╝██║  ██║██╔════╝██╔════╝██╔════╝
