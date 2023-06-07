@@ -1,5 +1,6 @@
 # <p align="center"> ♕ Chess </p>
 
+<div align="center">
 
     ██████╗██╗  ██╗███████╗███████╗███████╗
     ██╔════╝██║  ██║██╔════╝██╔════╝██╔════╝
@@ -7,6 +8,8 @@
     ██║     ██╔══██║██╔══╝  ╚════██║╚════██║
     ╚██████╗██║  ██║███████╗███████║███████║
      ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝
+
+</div>
 
 This project is a chess application that allows users to play chess online. It is built using Rust with WebAssembly (WASM). Play the game at [here](https://mikej.site/chess/).
 
