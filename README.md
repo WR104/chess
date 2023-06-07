@@ -2,16 +2,16 @@
 
 <div align="center">                            
 
- ██████╗██╗  ██╗███████╗███████╗███████╗
-██╔════╝██║  ██║██╔════╝██╔════╝██╔════╝
-██║     ███████║█████╗  ███████╗███████╗
-██║     ██╔══██║██╔══╝  ╚════██║╚════██║
-╚██████╗██║  ██║███████╗███████║███████║
- ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝
+<a> ██████╗██╗  ██╗███████╗███████╗███████╗ </a>
+<a> ██╔════╝██║  ██║██╔════╝██╔════╝██╔════╝ </a>
+<a> ██║     ███████║█████╗  ███████╗███████╗ </a>
+<a> ██║     ██╔══██║██╔══╝  ╚════██║╚════██║ </a>
+<a> ╚██████╗██║  ██║███████╗███████║███████║ </a>
+<a> ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝ </a>
 
  </div>
 
-This project is a chess application that allows users to play chess online. It is built using Rust, WebAssembly (WASM), JavaScript, HTML, and CSS.
+This project is a chess application that allows users to play chess online. It is built using Rust with WebAssembly (WASM). Play the game at [here](https://mikej.site/chess/).
 
 
 ## Introduction
