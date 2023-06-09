@@ -10,8 +10,9 @@
      ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝
 
 
-This project is a chess application that allows users to play chess online. It is built using Rust with WebAssembly. 
-Play the game at [here](https://mikej.site/chess/).
+<p> This project is a chess application that allows users to play chess online. It is built using Rust with WebAssembly. </p>
+<br>
+<p> Play the game at [here](https://mikej.site/chess/). </p>
 
 ![chess demo](https://raw.githubusercontent.com/WR104/chess/main/www/img/demo.JPG)
 
