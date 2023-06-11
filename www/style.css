@@ -47,3 +47,24 @@ body {
     background-color: rgba(255, 0, 0, 0.568);
     pointer-events: none;
 }
+
+@media (max-width: 780px) {
+    .chessboard {
+        width: 80vw;
+        height: auto;
+        border: solid 10px #242424;
+        margin: 5px auto;
+        box-shadow: 5px 9px 8px -1px rgba(0, 0, 0, 0.57);
+        background-color: black;
+    }
+    
+    
+    .square {
+        width: 10vw;
+        height: 10vw;
+        margin: 0;
+        padding: 0;
+        vertical-align: top;
+        position: relative;
+    } 
+}
