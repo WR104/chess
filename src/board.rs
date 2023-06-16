@@ -443,7 +443,7 @@ impl Board {
                     continue;
                 }
                 if piece.is_legal_attack(pos, self) {
-                    return true
+                    return true;
                 }
             }
         }
