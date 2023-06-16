@@ -2,7 +2,7 @@
 
 <div align="center">
 
-    ██████╗██╗  ██╗███████╗███████╗███████╗
+     ██████╗██╗  ██╗███████╗███████╗███████╗
     ██╔════╝██║  ██║██╔════╝██╔════╝██╔════╝
     ██║     ███████║█████╗  ███████╗███████╗
     ██║     ██╔══██║██╔══╝  ╚════██║╚════██║
@@ -21,17 +21,11 @@ Play the game at [here](https://mikej.site/chess/)
 
 The chess project is an interactive web-based chess game that enables users to play against each other online. The application provides a visually appealing chessboard interface with intuitive controls, allowing players to make moves and track the game's progress.
 
-Features of the chess project include:
-- Full chess game functionality, including legal move validation, checkmate detection, and draw conditions.
-- Multiplayer support for playing against other online users.
-- Single-player mode with AI opponent at different difficulty levels.
-- Move history tracking and game state persistence.
-
 ## Technologies
 
 The chess project utilizes the following technologies:
 
-- Rust: The core chess logic and game engine are implemented in Rust, providing efficient and reliable game processing.
+- Rust: The core chess logic and game engine are implemented in Rust using the `chess_engine` crate, providing efficient and reliable game processing.
 - WebAssembly (WASM): The Rust code is compiled into WebAssembly to run in the browser environment.
 - JavaScript: The interactive features and user interface enhancements are implemented using JavaScript.
 - HTML: The web pages and layout structure of the application are defined using HTML.
