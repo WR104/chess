@@ -11,7 +11,7 @@
 
 
 This project is a chess application that allows users to play chess online. It is built using Rust with WebAssembly.  
-Play the game at [here](https://mikej.site/chess/)
+Play the game at [here](https://mikej.space/chess/)
 
 ![chess demo](https://raw.githubusercontent.com/WR104/chess/main/www/img/demo.JPG)
 
